@@ -1,11 +1,18 @@
-import my_app
-import polars as pl
-from massive import RESTClient
+import my_app as ma
 
-client = RESTClient(api_key="Qtqpf517_YhEp2WA3mK35g2OvBedXw5c")
+print(ma.add0(1, 0))
+print(ma.add1(1, ma.the_answer))
+print(ma.add2())
 
-ticker = "AAPL"
+p = ma.Pet("Loai")
+print(p)
+print(p.getName())
 
-print(my_app.add0(1, 0))
-print(my_app.add1(1, 1))
-print(my_app.add2())
+p.setName("Aris")
+print(p.getName())
+
+p.setName(ma.what)
+print(p.getName())
+
+p.name = "Hedi"
+print(p.getName())
