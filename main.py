@@ -1,7 +1,10 @@
+import datetime
+
 import arima_forecast
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import pandas_datareader.data as web
 
 
 class SalesForecaster:
@@ -87,16 +90,15 @@ def main():
     print("C++ Backend (Eigen + C++ grid search) with Python Interface")
     print("=" * 70)
 
-    # Sample quarterly sales data
-    dates = pd.date_range(start="2020-03-31", periods=20, freq="QE")
-
-    # Simulated sales data with trend
-    np.random.seed(42)
-    trend = np.linspace(100, 150, 20)
-    noise = np.random.normal(0, 5, 20)
-    sales = trend + noise
-
-    df = pd.DataFrame({"Quarter": dates, "Sales": sales})
+    start = datetime.datetime(2015, 1, 1)
+    end = datetime.datetime(2024, 1, 1)
+    
+    df = web.DataReader("RSAFS", "fred", start, end).dropna()
+    
+    sales = df["RSAFS"]
+    dates = sales.index
+    
+    forecaster = SalesForecaster(sales, dates)
 
     print("\nHistorical Sales Data:")
     print(df)
