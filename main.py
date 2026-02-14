@@ -1,158 +1,155 @@
+import arima_forecast
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import quant_engine as qe
-from statsmodels.graphics.tsaplots import plot_acf, plot_pacf
-from statsmodels.stats.diagnostic import acorr_ljungbox
-from statsmodels.tsa.arima.model import ARIMA
-from statsmodels.tsa.stattools import adfuller
-
-# # 1. Generate Fake Tick Data (Random Walk)
-# def generate_fake_data(n=100_000):
-#     returns = np.random.normal(0, 0.001, n)
-#     price = 150.0 + np.cumsum(returns)
-#     return price.astype(np.float64)
-#
-#
-# # 2. Define the Strategy Logic (Python side)
-# def execute_strategy(prices, signals):
-#     # This happens AFTER the C++ engine crunched the numbers
-#     buy_signals = np.where(signals > 0, 1, 0)
-#     # Simple profit calculation
-#     pnl = np.diff(prices) * buy_signals[:-1]
-#     return np.cumsum(pnl)
-#
-#
-# # 3. Execution
-# engine = qe.Engine()
-# prices = generate_fake_data(20_000_000)
-#
-# print("Running C++ Engine...")
-# # C++ handles the 12-26-9 MACD logic in nanoseconds
-# macd_histogram = engine.run_macd_backtest(prices, 12, 26, 9)
-#
-# print("Calculating PnL in Python...")
-# pnl_curve = execute_strategy(prices, macd_histogram)
-#
-# plt.plot(pnl_curve)
-# plt.title("Backtest Result: MACD 12-26-9")
-# plt.show()
 
 
-# ----------------------------
-# 1) Load your quarterly series
-# ----------------------------
-# Replace this with your own data load.
-# Expected format: a CSV with columns: date, sales
-# Example date format: 2020-03-31, 2020-06-30, etc.
+class SalesForecaster:
+    def __init__(self, data: pd.Series, dates: pd.Series = None):
+        self.data = np.asarray(data, dtype=np.float64)  # numpy 1D
+        self.dates = (
+            dates
+            if dates is not None
+            else pd.date_range(start="2020-03-31", periods=len(self.data), freq="QE")
+        )
+        self.best_order = None
+        self.best_aic = None
+        self.model = None
 
-# df = pd.read_csv("quarterly_sales.csv", parse_dates=["date"])
-# df = df.set_index("date").sort_index()
-# y = df["sales"]
+    def auto_select_order(self, max_p=3, max_d=2, max_q=3):
+        p, d, q, aic = arima_forecast.best_order(self.data, max_p, max_d, max_q)
+        self.best_order = (int(p), int(d), int(q))
+        self.best_aic = float(aic)
+        print(f"Selected: ARIMA{self.best_order}, AIC={self.best_aic:.2f}")
+        return self.best_order
 
-# Demo data (remove this block when using real data)
-dates = pd.date_range("2019-03-31", periods=28, freq="Q")
-rng = np.random.default_rng(0)
-y = pd.Series(
-    100
-    + np.cumsum(rng.normal(2.0, 5.0, size=len(dates)))
-    + 3 * np.sin(np.arange(len(dates)) / 2),
-    index=dates,
-)
-y.name = "sales"
+    def fit(self, p=None, d=None, q=None):
+        if p is None or d is None or q is None:
+            if self.best_order is None:
+                self.auto_select_order()
+            p, d, q = self.best_order
 
-# ----------------------------
-# 2) Optional: log transform (often good for Sales/EPS)
-# ----------------------------
-y_t = np.log(y)  # comment out if you don't want log
+        self.model = arima_forecast.ARIMA(int(p), int(d), int(q))
+        self.model.fit(self.data)  # numpy array goes in, no tolist
+        print("Fitted.")
+        print("AR:", self.model.get_ar_params())
+        print("MA:", self.model.get_ma_params())
+        print("Intercept:", self.model.get_intercept())
+        print("AIC:", self.model.get_aic())
+        print("BIC:", self.model.get_bic())
 
-# ----------------------------
-# 3) Visualize
-# ----------------------------
-y_t.plot(title="Transformed series (log(sales))")
-plt.show()
+    def forecast(self, steps=4, confidence_level=0.95):
+        if self.model is None:
+            raise ValueError("Call fit() first")
+
+        flat = self.model.predict_with_intervals(int(steps), float(confidence_level))
+        flat = np.asarray(flat, dtype=np.float64).reshape(steps, 3)
+
+        last_date = self.dates.iloc[-1]
+        future_dates = pd.date_range(
+            start=last_date + pd.DateOffset(months=3), periods=steps, freq="QE"
+        )
+
+        df = pd.DataFrame(
+            flat, index=future_dates, columns=["Forecast", "Lower_Bound", "Upper_Bound"]
+        )
+        return df
+
+    def plot_forecast(self, forecast_df):
+        plt.figure(figsize=(12, 6))
+        plt.plot(self.dates, self.data, "o-", label="Historical", linewidth=2)
+        plt.plot(
+            forecast_df.index,
+            forecast_df["Forecast"],
+            "s--",
+            label="Forecast",
+            linewidth=2,
+        )
+        plt.fill_between(
+            forecast_df.index,
+            forecast_df["Lower_Bound"],
+            forecast_df["Upper_Bound"],
+            alpha=0.25,
+            label="Interval",
+        )
+        plt.grid(True, alpha=0.3)
+        plt.legend()
+        plt.xticks(rotation=45)
+        plt.tight_layout()
+        return plt.gcf()
 
 
-# ----------------------------
-# 4) Decide differencing d
-# ----------------------------
-def adf_pvalue(series):
-    series = series.dropna()
-    return adfuller(series, autolag="AIC")[1]
+def main():
+    """Example usage with sample quarterly sales data (C++ does best-order search)"""
+
+    print("=" * 70)
+    print("ARIMA Sales Forecasting System")
+    print("C++ Backend (Eigen + C++ grid search) with Python Interface")
+    print("=" * 70)
+
+    # Sample quarterly sales data
+    dates = pd.date_range(start="2020-03-31", periods=20, freq="QE")
+
+    # Simulated sales data with trend
+    np.random.seed(42)
+    trend = np.linspace(100, 150, 20)
+    noise = np.random.normal(0, 5, 20)
+    sales = trend + noise
+
+    df = pd.DataFrame({"Quarter": dates, "Sales": sales})
+
+    print("\nHistorical Sales Data:")
+    print(df)
+
+    # Initialize forecaster (data stored as numpy float64 internally)
+    forecaster = SalesForecaster(df["Sales"], df["Quarter"])
+
+    # C++ grid search (single call): returns best (p,d,q) + best AIC
+    forecaster.auto_select_order(max_p=3, max_d=2, max_q=3)
+
+    # Fit chosen model (C++ Eigen OLS)
+    forecaster.fit()
+
+    # Forecast next 4 quarters (C++ intervals)
+    forecast_df = forecaster.forecast(steps=4, confidence_level=0.95)
+
+    print("\nForecast Results:")
+    print(forecast_df)
+
+    # Lightweight metrics (from C++ stats + residuals)
+    print("\nModel Stats:")
+    print(f"  AIC: {forecaster.model.get_aic():.2f}")
+    print(f"  BIC: {forecaster.model.get_bic():.2f}")
+
+    # If you want RMSE/MAE like before (in-sample):
+    resid = np.asarray(forecaster.model.get_residuals(), dtype=np.float64)
+    if resid.size > 0:
+        rmse = float(np.sqrt(np.mean(resid**2)))
+        mae = float(np.mean(np.abs(resid)))
+        print(f"  RMSE (in-sample): {rmse:.2f}")
+        print(f"  MAE  (in-sample): {mae:.2f}")
+
+    # Visualizations
+    print("\nGenerating visualizations...")
+
+    fig1 = forecaster.plot_forecast(forecast_df)
+    plt.savefig("sales_forecast.png", dpi=300, bbox_inches="tight")
+    print("  Saved: sales_forecast.png")
+
+    # Optional: if you kept/ported plot_diagnostics() in your class, you can enable this.
+    if hasattr(forecaster, "plot_diagnostics"):
+        fig2 = forecaster.plot_diagnostics()
+        plt.savefig("model_diagnostics.png", dpi=300, bbox_inches="tight")
+        print("  Saved: model_diagnostics.png")
+
+    plt.close("all")
+
+    print("\n" + "=" * 70)
+    print("Forecasting complete!")
+    print("=" * 70)
+
+    return forecaster, forecast_df
 
 
-print("ADF p-value (d=0):", adf_pvalue(y_t))
-
-# Try d = 1
-y_diff = y_t.diff(1)
-print("ADF p-value (d=1):", adf_pvalue(y_diff))
-
-y_diff.plot(title="Differenced series (d=1)")
-plt.show()
-
-# ----------------------------
-# 5) ACF/PACF to suggest p and q (use differenced series)
-# ----------------------------
-plot_acf(y_diff.dropna(), lags=12)
-plt.show()
-
-plot_pacf(y_diff.dropna(), lags=12, method="ywm")
-plt.show()
-
-# ----------------------------
-# 6) Fit a few candidate models and compare AIC
-# ----------------------------
-candidates = []
-for p in range(0, 4):
-    for q in range(0, 4):
-        try:
-            model = ARIMA(y_t, order=(p, 1, q))  # d fixed to 1 here
-            res = model.fit()
-            candidates.append((p, 1, q, res.aic))
-        except Exception:
-            pass
-
-candidates = sorted(candidates, key=lambda x: x[3])
-print("Top models by AIC:")
-for row in candidates[:5]:
-    print(row)
-
-best_p, best_d, best_q, best_aic = candidates[0]
-print("Best by AIC:", (best_p, best_d, best_q), "AIC=", best_aic)
-
-# ----------------------------
-# 7) Fit best model and check diagnostics
-# ----------------------------
-best_model = ARIMA(y_t, order=(best_p, best_d, best_q))
-best_res = best_model.fit()
-print(best_res.summary())
-
-# Residual checks
-resid = best_res.resid.dropna()
-plt.figure()
-plt.plot(resid)
-plt.title("Residuals")
-plt.show()
-
-plot_acf(resid, lags=12)
-plt.show()
-
-lb = acorr_ljungbox(resid, lags=[8, 12], return_df=True)
-print("Ljung-Box test:")
-print(lb)
-
-# ----------------------------
-# 8) Forecast next quarter
-# ----------------------------
-fc = best_res.get_forecast(steps=1)
-mean = fc.predicted_mean.iloc[0]
-ci = fc.conf_int(alpha=0.05).iloc[0]  # 95% interval
-
-print("Forecast (transformed):", mean)
-print("95% CI (transformed):", tuple(ci))
-
-# If you used log, convert back to original scale:
-mean_orig = float(np.exp(mean))
-ci_orig = tuple(np.exp(ci))
-print("Forecast (original scale):", mean_orig)
-print("95% CI (original scale):", ci_orig)
+if __name__ == "__main__":
+    forecaster, forecast = main()
