@@ -1,117 +1,55 @@
-#include <algorithm>
-#include <condition_variable>
 #include <cstddef>
-#include <expected>
-#include <functional>
-#include <list>
-#include <map>
-#include <mutex>
-#include <print>
 #include <pybind11/functional.h>
+#include <pybind11/numpy.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
-#include <queue>
-#include <thread>
-#include <unordered_map>
 #include <vector>
 
 namespace py = pybind11;
 
-struct Pet {
-  Pet(const std::string &name) : name(name) {}
-  void setName(const std::string &name_) { name = name_; }
-  const std::string &getName() const { return name; }
-
-  std::string name;
-};
-
-struct Tick {
-  double price;
-  uint64_t volume;
-  int64_t timestamp_ns;
-};
-
-struct Order {
-  std::string symbol;
-  double price;
-  int quantity;
-  bool is_buy;
-};
-
-struct BacktestEngine {
+class BacktestEngine {
 public:
-  using StrategyCallback = std::move_only_function<void(const Tick &)>;
-
-  std::expected<void, std::string> addTick(const Tick &t) noexcept {
-    if (t.price <= 0)
-      return std::unexpected("Invalid price");
-
-    processTick(t);
-    return {};
+  // Optimized EMA calculation (Incremental)
+  double calculate_ema(double current_price, double prev_ema, int period) {
+    double k = 2.0 / (period + 1.0);
+    return (current_price * k) + (prev_ema * (1.0 - k));
   }
 
-  void setStrategy(StrategyCallback strategy) noexcept {
-    strategy_ = std::move(strategy);
-  }
+  // Process a whole batch of ticks at once
+  py::array_t<double> run_macd_backtest(py::array_t<double> prices, int fast_p,
+                                        int slow_p, int signal_p) {
+    const auto buf = prices.request();
+    double *ptr = static_cast<double *>(buf.ptr);
+    size_t size = buf.shape[0];
 
-private:
-  void processTick(const Tick &t) {
-    if (strategy_) {
-      strategy_(t);
+    // Output buffer for MACD Histogram
+    auto result = py::array_t<double>(size);
+    double *res_ptr = static_cast<double *>(result.request().ptr);
+
+    double ema_fast = ptr[0];
+    double ema_slow = ptr[0];
+    double ema_signal = 0;
+
+    for (size_t i = 0; i < size; ++i) {
+      ema_fast = calculate_ema(ptr[i], ema_fast, fast_p);
+      ema_slow = calculate_ema(ptr[i], ema_slow, slow_p);
+
+      double macd_line = ema_fast - ema_slow;
+      ema_signal =
+          (i == 0) ? macd_line : calculate_ema(macd_line, ema_signal, signal_p);
+
+      // The "Histogram" is the signal we usually trade on
+      res_ptr[i] = macd_line - ema_signal;
     }
-  }
 
-private:
-  StrategyCallback strategy_;
+    return result;
+  }
 };
 
-int add(int i, int j) { return i + j; }
-
-PYBIND11_MODULE(my_app, m, py::mod_gil_not_used()) {
-  m.doc() = "pybind11 my_app plugin";
-
-  // Specify arguments with py::arg
-  m.def("add0", &add, "A function that adds two numbers", py::arg("i"),
-        py::arg("j"));
-
-  // Specify arguments with pybind11::literals::_a
-  using namespace pybind11::literals;
-  m.def("add1", &add, "A function that adds two numbers", "i"_a, "j"_a);
-
-  // Specify default arguments
-  m.def("add2", &add, "A function that adds two numbers", "i"_a = 1, "j"_a = 2);
-
-  // Exporting variables
-  m.attr("the_answer") = 42;
-  py::object world = py::cast("World");
-  m.attr("what") = world;
-
-  // Creaqting bindings for custom types
-  py::class_<Pet>(m, "Pet")
-      .def(py::init<const std::string &>())
-      .def("setName", &Pet::setName)
-      .def("getName", &Pet::getName)
-      .def("__repr__",
-           [](const Pet &a) { return "<my_app.Pet named '" + a.name + "'>"; })
-      .def_readwrite("name", &Pet::name);
-
-  py::class_<Tick>(m, "Tick")
-      .def(py::init<double, uint64_t, int64_t>())
-      .def_readwrite("price", &Tick::price)
-      .def_readwrite("volume", &Tick::volume)
-      .def_readwrite("timestamp_ns", &Tick::timestamp_ns);
-
+PYBIND11_MODULE(quant_engine, m) {
   py::class_<BacktestEngine>(m, "Engine")
       .def(py::init<>())
-      // Expose the tick ingestion
-      .def("add_tick",
-           [](BacktestEngine &self, Tick t) {
-             auto res = self.addTick(t);
-             if (!res)
-               throw std::runtime_error(res.error());
-           })
-      // Allow Python users to define the strategy logic
-      .def("set_strategy", &BacktestEngine::setStrategy);
+      .def("run_macd_backtest", &BacktestEngine::run_macd_backtest);
 }
 
 int main() { return 0; }
