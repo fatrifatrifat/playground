@@ -1,56 +1,79 @@
-set(PROTO_DIR ${CMAKE_CURRENT_SOURCE_DIR}/proto)
-set(PROTO_FILES
-  ${PROTO_DIR}/common.proto
-  ${PROTO_DIR}/market_data.proto
-  ${PROTO_DIR}/strategy_signal.proto
-  ${PROTO_DIR}/order.proto
-  ${PROTO_DIR}/execution.proto
-  ${PROTO_DIR}/risk.proto
-  ${PROTO_DIR}/gateway.proto
+cmake_minimum_required(VERSION 3.24)
+
+find_package(Protobuf REQUIRED)
+
+set(TRADING_PROTO_FILES
+    ${CMAKE_CURRENT_SOURCE_DIR}/common.proto
+    ${CMAKE_CURRENT_SOURCE_DIR}/market_data.proto
+    ${CMAKE_CURRENT_SOURCE_DIR}/strategy_signal.proto
+    ${CMAKE_CURRENT_SOURCE_DIR}/order.proto
+    ${CMAKE_CURRENT_SOURCE_DIR}/execution.proto
+    ${CMAKE_CURRENT_SOURCE_DIR}/risk.proto
+    ${CMAKE_CURRENT_SOURCE_DIR}/gateway.proto
 )
 
-add_library(contracts_proto STATIC)
-target_link_libraries(contracts_proto PUBLIC protobuf::libprotobuf)
+set(TRADING_PROTO_GEN_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
+file(MAKE_DIRECTORY ${TRADING_PROTO_GEN_DIR})
 
-protobuf_generate(
-  TARGET contracts_proto
-  LANGUAGE cpp
-  PROTOS ${PROTO_FILES}
-  IMPORT_DIRS ${PROTO_DIR}
-  PROTOC_OUT_DIR ${CMAKE_BINARY_DIR}/generated
-)
+add_library(trading_contracts STATIC)
+add_library(trading::contracts ALIAS trading_contracts)
 
-target_include_directories(contracts_proto
-  PUBLIC
-    ${CMAKE_BINARY_DIR}/generated
-    ${PROTO_DIR}
-)
-
-# ---- important part: explicit Abseil link ----
-if(TARGET absl::check AND TARGET absl::log)
-  target_link_libraries(contracts_proto PUBLIC absl::check absl::log)
-elseif(TARGET absl::log_internal_check_op)
-  # fallback for some package layouts
-  target_link_libraries(contracts_proto PUBLIC
-    absl::log_internal_check_op
-    absl::log_internal_message
-    absl::base
-    absl::strings
-  )
+if(TARGET protobuf::libprotobuf)
+    target_link_libraries(trading_contracts PUBLIC protobuf::libprotobuf)
 else()
-  message(FATAL_ERROR "Abseil targets not found. Install abseil-cpp dev package.")
+    target_include_directories(trading_contracts PUBLIC ${Protobuf_INCLUDE_DIRS})
+    target_link_libraries(trading_contracts PUBLIC ${Protobuf_LIBRARIES})
 endif()
 
-add_library(club::contracts ALIAS contracts_proto)
+# Generate C++ protobuf sources
+if(COMMAND protobuf_generate)
+    protobuf_generate(
+        TARGET         trading_contracts
+        LANGUAGE       cpp
+        PROTOS         ${TRADING_PROTO_FILES}
+        IMPORT_DIRS    ${CMAKE_CURRENT_SOURCE_DIR}
+        PROTOC_OUT_DIR ${TRADING_PROTO_GEN_DIR}
+    )
+elseif(COMMAND protobuf_generate_cpp)
+    # Legacy fallback
+    protobuf_generate_cpp(TRADING_PROTO_SRCS TRADING_PROTO_HDRS ${TRADING_PROTO_FILES})
+    target_sources(trading_contracts PRIVATE ${TRADING_PROTO_SRCS} ${TRADING_PROTO_HDRS})
+    set(TRADING_PROTO_GEN_DIR ${CMAKE_CURRENT_BINARY_DIR})
+else()
+    message(FATAL_ERROR "No protobuf generation function is available (protobuf_generate/protobuf_generate_cpp).")
+endif()
 
-# Optional python generation target (unchanged)
-set(PY_PROTO_OUT ${CMAKE_SOURCE_DIR}/research/generated)
-add_custom_target(proto_py
-  COMMAND ${CMAKE_COMMAND} -E make_directory ${PY_PROTO_OUT}
-  COMMAND ${Protobuf_PROTOC_EXECUTABLE}
-          --proto_path=${PROTO_DIR}
-          --python_out=${PY_PROTO_OUT}
-          ${PROTO_FILES}
-  DEPENDS ${PROTO_FILES}
-  COMMENT "Generating Python protobuf modules in research/generated"
+# Optional gRPC generation
+if(TRADING_ENABLE_GRPC)
+    find_package(gRPC CONFIG QUIET)
+    if(gRPC_FOUND AND COMMAND protobuf_generate)
+        if(TARGET gRPC::grpc_cpp_plugin)
+            set(_GRPC_CPP_PLUGIN_EXECUTABLE $<TARGET_FILE:gRPC::grpc_cpp_plugin>)
+        else()
+            find_program(_GRPC_CPP_PLUGIN_EXECUTABLE grpc_cpp_plugin)
+        endif()
+
+        if(_GRPC_CPP_PLUGIN_EXECUTABLE)
+            protobuf_generate(
+                TARGET               trading_contracts
+                LANGUAGE             grpc
+                GENERATE_EXTENSIONS  .grpc.pb.h .grpc.pb.cc
+                PLUGIN               "protoc-gen-grpc=${_GRPC_CPP_PLUGIN_EXECUTABLE}"
+                PROTOS               ${TRADING_PROTO_FILES}
+                IMPORT_DIRS          ${CMAKE_CURRENT_SOURCE_DIR}
+                PROTOC_OUT_DIR       ${TRADING_PROTO_GEN_DIR}
+            )
+            target_link_libraries(trading_contracts PUBLIC gRPC::grpc++ gRPC::grpc)
+        else()
+            message(WARNING "gRPC requested but grpc_cpp_plugin not found; skipping gRPC generation.")
+        endif()
+    else()
+        message(WARNING "gRPC requested but gRPC package or protobuf_generate() is unavailable; skipping gRPC generation.")
+    endif()
+endif()
+
+target_include_directories(trading_contracts
+    PUBLIC
+        $<BUILD_INTERFACE:${TRADING_PROTO_GEN_DIR}>
+        $<INSTALL_INTERFACE:include/trading/contracts>
 )
