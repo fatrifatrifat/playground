@@ -1,0 +1,56 @@
+syntax = "proto3";
+
+package club.trading.v1;
+
+import "common.proto";
+import "strategy_signal.proto";
+import "order.proto";
+import "execution.proto";
+
+option cc_enable_arenas = true;
+
+// Optional gRPC services for cross-language boundaries.
+
+message SubmitSignalRequest {
+  StrategySignal signal = 1;
+}
+
+message SubmitSignalResponse {
+  EventMeta meta = 1;
+  bool accepted = 2;
+  repeated string reasons = 3;
+  string normalized_signal_id = 4;
+}
+
+message SubmitSignalBatchRequest {
+  StrategySignalBatch batch = 1;
+}
+
+message SubmitSignalBatchResponse {
+  EventMeta meta = 1;
+  uint32 accepted_count = 2;
+  uint32 rejected_count = 3;
+  repeated string reasons = 4;
+}
+
+service StrategyGatewayService {
+  rpc SubmitSignal(SubmitSignalRequest) returns (SubmitSignalResponse);
+  rpc SubmitSignalBatch(SubmitSignalBatchRequest) returns (SubmitSignalBatchResponse);
+}
+
+message SubmitOrderRequest {
+  OrderCommand command = 1;
+}
+
+message SubmitOrderResponse {
+  OrderAck ack = 1;
+}
+
+message StreamExecReportsRequest {
+  string strategy_id = 1;
+}
+
+service ExecutionGatewayService {
+  rpc SubmitOrder(SubmitOrderRequest) returns (SubmitOrderResponse);
+  rpc StreamExecReports(StreamExecReportsRequest) returns (stream ExecutionReport);
+}

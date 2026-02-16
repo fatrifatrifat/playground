@@ -1,0 +1,27 @@
+option(ENABLE_ASAN "Enable AddressSanitizer" OFF)
+option(ENABLE_UBSAN "Enable UndefinedBehaviorSanitizer" OFF)
+
+function(club_global_options)
+  set(CMAKE_CXX_STANDARD 23)
+  set(CMAKE_CXX_STANDARD_REQUIRED ON)
+  set(CMAKE_CXX_EXTENSIONS OFF)
+  set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+endfunction()
+
+function(club_set_target_defaults target_name)
+  if(MSVC)
+    target_compile_options(${target_name} PRIVATE /W4 /WX /permissive- /Zc:__cplusplus)
+  else()
+    target_compile_options(${target_name} PRIVATE -Wall -Wextra -Wpedantic -Werror)
+  endif()
+
+  if((CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU") AND ENABLE_ASAN)
+    target_compile_options(${target_name} PRIVATE -fsanitize=address -fno-omit-frame-pointer)
+    target_link_options(${target_name} PRIVATE -fsanitize=address)
+  endif()
+
+  if((CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU") AND ENABLE_UBSAN)
+    target_compile_options(${target_name} PRIVATE -fsanitize=undefined)
+    target_link_options(${target_name} PRIVATE -fsanitize=undefined)
+  endif()
+endfunction()

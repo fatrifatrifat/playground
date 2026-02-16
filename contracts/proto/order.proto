@@ -1,0 +1,64 @@
+syntax = "proto3";
+
+package club.trading.v1;
+
+import "common.proto";
+
+option cc_enable_arenas = true;
+
+message NewOrderIntent {
+  EventMeta meta = 1;
+
+  string intent_id = 2;          // unique intent id
+  string signal_id = 3;          // parent signal
+  string strategy_id = 4;
+  string strategy_version = 5;
+
+  InstrumentRef instrument = 6;
+  Side side = 7;
+  OrdType ord_type = 8;
+  TimeInForce tif = 9;
+
+  int64 qty_e8 = 10;
+  int64 limit_price_e8 = 11;     // required for LIMIT/STOP_LIMIT
+  int64 stop_price_e8 = 12;      // required for STOP/STOP_LIMIT
+  int64 max_slippage_bps = 13;   // execution guardrail
+  bool reduce_only = 14;
+
+  uint64 ttl_ms = 15;
+  repeated Tag tags = 16;
+}
+
+message CancelOrderIntent {
+  EventMeta meta = 1;
+
+  string intent_id = 2;
+  string strategy_id = 3;
+  string client_order_id = 4;    // original clOrdId
+  string reason = 5;
+}
+
+message ReplaceOrderIntent {
+  EventMeta meta = 1;
+
+  string intent_id = 2;
+  string strategy_id = 3;
+  string client_order_id = 4;    // original clOrdId
+  int64 new_qty_e8 = 5;
+  int64 new_limit_price_e8 = 6;
+}
+
+message OrderCommand {
+  oneof command {
+    NewOrderIntent new_order = 1;
+    CancelOrderIntent cancel_order = 2;
+    ReplaceOrderIntent replace_order = 3;
+  }
+}
+
+message OrderAck {
+  EventMeta meta = 1;
+  string intent_id = 2;
+  bool accepted = 3;
+  repeated string reasons = 4;
+}

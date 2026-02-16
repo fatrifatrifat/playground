@@ -1,0 +1,49 @@
+syntax = "proto3";
+
+package club.trading.v1;
+
+import "common.proto";
+
+option cc_enable_arenas = true;
+
+message ExecutionReport {
+  EventMeta meta = 1;
+
+  string venue_order_id = 2;
+  string client_order_id = 3;
+  string intent_id = 4;
+  string strategy_id = 5;
+
+  InstrumentRef instrument = 6;
+  OrderStatus status = 7;
+  Side side = 8;
+
+  int64 cum_qty_e8 = 9;
+  int64 leaves_qty_e8 = 10;
+  int64 last_qty_e8 = 11;
+  int64 last_px_e8 = 12;
+  int64 avg_px_e8 = 13;
+
+  int64 fee_e8 = 14;
+  string fee_ccy = 15;
+  string reject_reason = 16;
+}
+
+message PositionSnapshot {
+  EventMeta meta = 1;
+  string strategy_id = 2;
+  InstrumentRef instrument = 3;
+  int64 net_qty_e8 = 4;
+  int64 avg_open_px_e8 = 5;
+  int64 unrealized_pnl_e8 = 6;
+  int64 realized_pnl_e8 = 7;
+}
+
+message PortfolioSnapshot {
+  EventMeta meta = 1;
+  string strategy_id = 2;
+  int64 gross_exposure_e8 = 3;
+  int64 net_exposure_e8 = 4;
+  int64 unrealized_pnl_e8 = 5;
+  int64 realized_pnl_e8 = 6;
+}
