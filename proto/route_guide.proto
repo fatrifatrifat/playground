@@ -1,0 +1,45 @@
+syntax="proto3";
+
+package routeguide;
+
+message Point {
+int32 latitude = 1;
+int32 longitude = 2;
+}
+message Rectangle {
+  Point lo = 1;
+  Point hi = 2;
+}
+message Feature {
+  string name = 1;
+  Point location = 2;
+}
+message RouteNote {
+  Point location = 1;
+  string message = 2;
+}
+message RouteSummary {
+  int32 point_count = 1;
+  int32 feature_count = 2;
+  int32 distance = 3;
+  int32 elapsed_time = 4;
+}
+
+service RouteGuide {
+
+  // Client -> Server -> Client, waits for response to comeback
+  rpc GetFeature(Point) returns (Feature) {}
+
+  // Server side
+  // Client -> Server -> Client, returns a sequence of messages, client reads until no more messages
+  rpc ListFeatures(Rectangle) returns (stream Feature) {}
+
+  // Client side
+  // Client -> Server -> Client, client sends a sequence of messages to the server that reads all of them and returns its response
+  rpc RecordRoute(stream Point) returns (RouteSummary) {}
+
+  // Bidirectional
+  // Both sides read/write messages. Different orders of interaction can be set, full write -> full read or one write -> one read, etc.
+  rpc RouteChat(stream RouteNote) returns (stream RouteNote) {}
+
+}

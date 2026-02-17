@@ -6,24 +6,39 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-# Find installed packages
+# Prefer package config mode consistently
+set(CMAKE_FIND_PACKAGE_PREFER_CONFIG ON)
+
+# gRPC examples for system-installed deps use this before Protobuf CONFIG
+# (compatibility helper for protobuf CMake integration)
+option(protobuf_MODULE_COMPATIBLE TRUE)
+
 find_package(Protobuf CONFIG REQUIRED)
 find_package(gRPC CONFIG REQUIRED)
 
-# Paths
 set(PROTO_DIR "${CMAKE_CURRENT_SOURCE_DIR}/proto")
-set(PROTO_FILE "${PROTO_DIR}/helloworld.proto")
-set(GEN_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated")
+set(GEN_DIR   "${CMAKE_CURRENT_BINARY_DIR}/generated")
 
-# Main target
-add_executable(my_app main.cpp)
+file(GLOB_RECURSE PROTO_FILES CONFIGURE_DEPENDS
+  "${PROTO_DIR}/*.proto"
+)
+
+if(NOT PROTO_FILES)
+  message(FATAL_ERROR "No .proto files found under ${PROTO_DIR}")
+endif()
+
+add_executable(my_app
+  main.cpp
+  ${PROTO_FILES}
+)
 
 # Generate *.pb.cc / *.pb.h
 protobuf_generate(
   TARGET my_app
   LANGUAGE cpp
-  PROTOS "${PROTO_FILE}"
+  PROTOS ${PROTO_FILES}
   IMPORT_DIRS "${PROTO_DIR}"
+  APPEND_PATH
   PROTOC_OUT_DIR "${GEN_DIR}"
 )
 
@@ -31,17 +46,16 @@ protobuf_generate(
 protobuf_generate(
   TARGET my_app
   LANGUAGE grpc
-  PROTOS "${PROTO_FILE}"
+  PROTOS ${PROTO_FILES}
   IMPORT_DIRS "${PROTO_DIR}"
+  APPEND_PATH
   PROTOC_OUT_DIR "${GEN_DIR}"
   GENERATE_EXTENSIONS .grpc.pb.h .grpc.pb.cc
   PLUGIN "protoc-gen-grpc=$<TARGET_FILE:gRPC::grpc_cpp_plugin>"
 )
 
-# Include generated headers
 target_include_directories(my_app PRIVATE "${GEN_DIR}")
 
-# Link runtime libs
 target_link_libraries(my_app
   PRIVATE
     protobuf::libprotobuf
