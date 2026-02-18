@@ -1,25 +1,10 @@
 #pragma once
 
-#include <grpc/grpc.h>
-#include <grpcpp/create_channel.h>
-#include <grpcpp/grpcpp.h>
-#include <grpcpp/server_builder.h>
-
-#include "strategy_signal.grpc.pb.h"
-#include "strategy_signal.pb.h"
+#include <trading/persistence/network_signal_source.h>
 
 #include <memory>
 
 namespace quarcc {
-// Declare only
-void RunServer();
-
-class StrategySignalGuideImpl final : public v1::StrategySignalGuide::Service {
-public:
-  grpc::Status SendSignal(grpc::ServerContext *context,
-                          const v1::StrategySignal *signal,
-                          v1::Result *result) override;
-};
 
 class StrategySignalClient {
 public:
@@ -34,6 +19,9 @@ private:
 class TradingEngine {
 public:
   void Run();
+
+private:
+  std::unique_ptr<ISignalSource> signal_source_;
 };
 
 } // namespace quarcc
