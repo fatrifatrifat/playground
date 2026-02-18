@@ -1,6 +1,9 @@
 cmake_minimum_required(VERSION 3.24)
 
-find_package(Protobuf REQUIRED)
+# Keep this if you want protobuf_generate_cpp fallback in CONFIG mode.
+set(protobuf_MODULE_COMPATIBLE TRUE)
+
+find_package(Protobuf CONFIG REQUIRED)
 
 set(TRADING_PROTO_FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/common.proto
@@ -18,12 +21,7 @@ file(MAKE_DIRECTORY ${TRADING_PROTO_GEN_DIR})
 add_library(trading_contracts STATIC)
 add_library(trading::contracts ALIAS trading_contracts)
 
-if(TARGET protobuf::libprotobuf)
-    target_link_libraries(trading_contracts PUBLIC protobuf::libprotobuf)
-else()
-    target_include_directories(trading_contracts PUBLIC ${Protobuf_INCLUDE_DIRS})
-    target_link_libraries(trading_contracts PUBLIC ${Protobuf_LIBRARIES})
-endif()
+target_link_libraries(trading_contracts PUBLIC protobuf::libprotobuf)
 
 # Generate C++ protobuf sources
 if(COMMAND protobuf_generate)
@@ -45,30 +43,27 @@ endif()
 
 # Optional gRPC generation
 if(TRADING_ENABLE_GRPC)
-    find_package(gRPC CONFIG QUIET)
-    if(gRPC_FOUND AND COMMAND protobuf_generate)
-        if(TARGET gRPC::grpc_cpp_plugin)
-            set(_GRPC_CPP_PLUGIN_EXECUTABLE $<TARGET_FILE:gRPC::grpc_cpp_plugin>)
-        else()
-            find_program(_GRPC_CPP_PLUGIN_EXECUTABLE grpc_cpp_plugin)
-        endif()
+    find_package(gRPC CONFIG REQUIRED)
 
-        if(_GRPC_CPP_PLUGIN_EXECUTABLE)
-            protobuf_generate(
-                TARGET               trading_contracts
-                LANGUAGE             grpc
-                GENERATE_EXTENSIONS  .grpc.pb.h .grpc.pb.cc
-                PLUGIN               "protoc-gen-grpc=${_GRPC_CPP_PLUGIN_EXECUTABLE}"
-                PROTOS               ${TRADING_PROTO_FILES}
-                IMPORT_DIRS          ${CMAKE_CURRENT_SOURCE_DIR}
-                PROTOC_OUT_DIR       ${TRADING_PROTO_GEN_DIR}
-            )
-            target_link_libraries(trading_contracts PUBLIC gRPC::grpc++ gRPC::grpc)
-        else()
-            message(WARNING "gRPC requested but grpc_cpp_plugin not found; skipping gRPC generation.")
-        endif()
+    if(TARGET gRPC::grpc_cpp_plugin)
+        set(_GRPC_CPP_PLUGIN_EXECUTABLE $<TARGET_FILE:gRPC::grpc_cpp_plugin>)
     else()
-        message(WARNING "gRPC requested but gRPC package or protobuf_generate() is unavailable; skipping gRPC generation.")
+        find_program(_GRPC_CPP_PLUGIN_EXECUTABLE grpc_cpp_plugin)
+    endif()
+
+    if(_GRPC_CPP_PLUGIN_EXECUTABLE)
+        protobuf_generate(
+            TARGET               trading_contracts
+            LANGUAGE             grpc
+            GENERATE_EXTENSIONS  .grpc.pb.h .grpc.pb.cc
+            PLUGIN               "protoc-gen-grpc=${_GRPC_CPP_PLUGIN_EXECUTABLE}"
+            PROTOS               ${TRADING_PROTO_FILES}
+            IMPORT_DIRS          ${CMAKE_CURRENT_SOURCE_DIR}
+            PROTOC_OUT_DIR       ${TRADING_PROTO_GEN_DIR}
+        )
+        target_link_libraries(trading_contracts PUBLIC gRPC::grpc++ gRPC::grpc)
+    else()
+        message(FATAL_ERROR "gRPC requested but grpc_cpp_plugin not found.")
     endif()
 endif()
 

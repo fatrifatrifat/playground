@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package club.trading.v1;
+package quarcc.v1;
 
 option cc_enable_arenas = true;
 

@@ -1,5 +1,7 @@
 #include <iostream>
+#include <trading/core/trading_engine.h>
 
 int main() {
-  std::cout << "I'm gay!";
+  quarcc::TradingEngine engine;
+  engine.Run();
 }

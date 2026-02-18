@@ -7,7 +7,7 @@ find_package(SQLite3 REQUIRED)
 add_library(trading_interfaces INTERFACE)
 add_library(trading::interfaces ALIAS trading_interfaces)
 
-target_compile_features(trading_interfaces INTERFACE cxx_std_20)
+target_compile_features(trading_interfaces INTERFACE cxx_std_23)
 
 target_include_directories(trading_interfaces
     INTERFACE
@@ -28,6 +28,19 @@ target_sources(trading_interfaces INTERFACE
 
 # Contract headers (generated protobuf) are propagated through this link
 target_link_libraries(trading_interfaces INTERFACE trading_contracts)
+
+# Optional Alpaca SDK propagation (provided by root FetchContent)
+if(TRADING_ENABLE_ALPACA_SDK)
+    if(NOT TARGET alpaca::alpaca_sdk)
+        message(FATAL_ERROR
+            "TRADING_ENABLE_ALPACA_SDK=ON but alpaca::alpaca_sdk target not found. "
+            "Make sure root CMake runs FetchContent_MakeAvailable(alpaca_sdk) before add_subdirectory(engine-cpp)."
+        )
+    endif()
+
+    target_link_libraries(trading_interfaces INTERFACE alpaca::alpaca_sdk)
+    target_compile_definitions(trading_interfaces INTERFACE TRADING_ENABLE_ALPACA_SDK=1)
+endif()
 
 # Helper for consistent warnings
 function(trading_apply_warnings target_name)

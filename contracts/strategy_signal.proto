@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package club.trading.v1;
+package quarcc.v1;
 
 import "common.proto";
 
@@ -58,4 +58,19 @@ message StrategySignalBatch {
   EventMeta meta = 1;
   string batch_id = 2;
   repeated StrategySignal signals = 3;
+}
+
+enum State {
+  ACCEPTED = 0;
+  DECLINED = 1;
+  WAITING = 2;
+}
+
+message Result {
+  State state = 1;
+}
+
+service StrategySignalGuide {
+  rpc SendSignal(StrategySignal) returns (Result) {}
+  rpc SendSignals(stream StrategySignal) returns (stream Result) {}
 }
