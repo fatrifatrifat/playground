@@ -10,9 +10,10 @@ class AlpacaGateway : public IExecutionGateway {
 public:
   AlpacaGateway();
 
-  void submitOrder() override;
-  void cancelOrder() override;
-  void replaceOrder() override;
+  void submitOrder(const v1::Order &order) override;
+  void cancelOrder(const OrderId &orderId) override;
+  void replaceOrder(const OrderId &orderId,
+                    const v1::Order &new_order) override;
 
 private:
   alpaca::Environment env_;

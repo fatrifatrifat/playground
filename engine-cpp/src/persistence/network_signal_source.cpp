@@ -21,9 +21,14 @@ void NetworkSignalSource::RunServer() {
   server_->Wait();
 }
 
-void NetworkSignalSource::InvokeCallback_() {
+v1::Result
+NetworkSignalSource::InvokeCallback_(const v1::StrategySignal &signal) {
   if (callback_)
-    callback_();
+    return callback_(signal);
+
+  v1::Result res;
+  res.set_state(v1::State::DECLINED);
+  return res;
 }
 
 NetworkSignalSource::StrategySignalGuideImpl::StrategySignalGuideImpl(
@@ -31,13 +36,13 @@ NetworkSignalSource::StrategySignalGuideImpl::StrategySignalGuideImpl(
     : owner_(owner) {}
 
 grpc::Status NetworkSignalSource::StrategySignalGuideImpl::SendSignal(
-    grpc::ServerContext * /*context*/, const v1::StrategySignal * /*signal*/,
-    v1::Result * /*result*/) {
+    grpc::ServerContext * /*context*/, const v1::StrategySignal *signal,
+    v1::Result *result) {
 
   std::cout << "[Server] Signal received\n";
 
   if (owner_)
-    owner_->InvokeCallback_();
+    result->CopyFrom(owner_->InvokeCallback_(*signal));
 
   std::cout << "[Server] Result sent\n";
   return grpc::Status::OK;

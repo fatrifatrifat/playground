@@ -2,10 +2,7 @@
 
 #include <trading/utils/result.h>
 
-#include "strategy_signal.grpc.pb.h"
-#include "strategy_signal.pb.h"
-
-#include <variant>
+#include "order.pb.h"
 
 namespace quarcc {
 
@@ -13,9 +10,10 @@ class IExecutionGateway {
 public:
   virtual ~IExecutionGateway() = default;
 
-  virtual void submitOrder() = 0;
-  virtual void cancelOrder() = 0;
-  virtual void replaceOrder() = 0;
+  virtual void submitOrder(const v1::Order &order) = 0;
+  virtual void cancelOrder(const OrderId &orderId) = 0;
+  virtual void replaceOrder(const OrderId &orderId,
+                            const v1::Order &new_order) = 0;
 };
 
 } // namespace quarcc

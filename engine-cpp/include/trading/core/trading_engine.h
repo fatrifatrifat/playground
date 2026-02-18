@@ -2,6 +2,7 @@
 
 #include <trading/gateways/alpaca_fix_gateway.h>
 #include <trading/persistence/network_signal_source.h>
+#include <trading/utils/order_id_generator.h>
 
 #include <memory>
 
@@ -22,6 +23,8 @@ public:
   void Run();
 
 private:
+  v1::Order createOrderFromSignal(const v1::StrategySignal &signal);
+
   std::unique_ptr<ISignalSource> signal_source_;
   std::shared_ptr<IExecutionGateway> gateway_;
 };

@@ -13,7 +13,7 @@ public:
 
 private:
   void RunServer();
-  void InvokeCallback_();
+  v1::Result InvokeCallback_(const v1::StrategySignal &signal);
 
   class StrategySignalGuideImpl final
       : public v1::StrategySignalGuide::Service {
