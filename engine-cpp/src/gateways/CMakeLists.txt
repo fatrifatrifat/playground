@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.24)
 
 set(GATEWAY_SOURCES
     paper_trading_gateway.cpp
+    alpaca_fix_gateway.cpp
+    websocket_md_gateway.cpp
 )
 
 set(_HAS_FIX 0)

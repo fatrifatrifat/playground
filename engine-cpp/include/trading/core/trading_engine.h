@@ -1,5 +1,6 @@
 #pragma once
 
+#include <trading/gateways/alpaca_fix_gateway.h>
 #include <trading/persistence/network_signal_source.h>
 
 #include <memory>
@@ -22,6 +23,7 @@ public:
 
 private:
   std::unique_ptr<ISignalSource> signal_source_;
+  std::shared_ptr<IExecutionGateway> gateway_;
 };
 
 } // namespace quarcc

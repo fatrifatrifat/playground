@@ -2,16 +2,20 @@
 
 #include <trading/utils/result.h>
 
-#include <expected>
-#include <vector>
+#include "strategy_signal.grpc.pb.h"
+#include "strategy_signal.pb.h"
+
+#include <variant>
 
 namespace quarcc {
 
 class IExecutionGateway {
 public:
-  virtual ~IExecutionGateway() {}
+  virtual ~IExecutionGateway() = default;
 
-  virtual std::expected<std::string, Error> submitOrder();
+  virtual void submitOrder() = 0;
+  virtual void cancelOrder() = 0;
+  virtual void replaceOrder() = 0;
 };
 
 } // namespace quarcc

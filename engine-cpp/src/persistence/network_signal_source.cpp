@@ -2,20 +2,7 @@
 
 namespace quarcc {
 
-static v1::Result processSignal(const v1::StrategySignal *signal) {
-  std::cout << "Processing signal, value: " << signal->confidence() << '\n';
-
-  v1::Result res;
-  if (signal->confidence() >= 80.) {
-    res.set_state(v1::State::ACCEPTED);
-  } else if (signal->confidence() >= 60.) {
-    res.set_state(v1::State::WAITING);
-  } else {
-    res.set_state(v1::State::DECLINED);
-  }
-  return res;
-}
-
+NetworkSignalSource::NetworkSignalSource() : service_(this) {}
 void NetworkSignalSource::start() { RunServer(); }
 void NetworkSignalSource::stop() { server_->Shutdown(); }
 void NetworkSignalSource::setCallback(
@@ -34,11 +21,24 @@ void NetworkSignalSource::RunServer() {
   server_->Wait();
 }
 
+void NetworkSignalSource::InvokeCallback_() {
+  if (callback_)
+    callback_();
+}
+
+NetworkSignalSource::StrategySignalGuideImpl::StrategySignalGuideImpl(
+    NetworkSignalSource *owner)
+    : owner_(owner) {}
+
 grpc::Status NetworkSignalSource::StrategySignalGuideImpl::SendSignal(
-    grpc::ServerContext * /*context*/, const v1::StrategySignal *signal,
-    v1::Result *result) {
+    grpc::ServerContext * /*context*/, const v1::StrategySignal * /*signal*/,
+    v1::Result * /*result*/) {
+
   std::cout << "[Server] Signal received\n";
-  *result = processSignal(signal);
+
+  if (owner_)
+    owner_->InvokeCallback_();
+
   std::cout << "[Server] Result sent\n";
   return grpc::Status::OK;
 }

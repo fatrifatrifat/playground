@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <expected>
 #include <string>
 
 namespace quarcc {
@@ -14,5 +15,8 @@ struct Error {
   std::string message_;
   ErrorType type_;
 };
+
+template <typename T> using Result = std::expected<T, Error>;
+using OrderId = std::string;
 
 } // namespace quarcc

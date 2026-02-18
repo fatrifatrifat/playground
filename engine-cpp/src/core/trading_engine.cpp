@@ -28,6 +28,8 @@ void TradingEngine::Run() {
   GOOGLE_PROTOBUF_VERIFY_VERSION;
 
   signal_source_ = std::make_unique<NetworkSignalSource>();
+  gateway_ = std::make_shared<AlpacaGateway>();
+  signal_source_->setCallback([this] { gateway_->submitOrder(); });
 
   std::thread server{&ISignalSource::start, signal_source_.get()};
 
@@ -36,6 +38,7 @@ void TradingEngine::Run() {
 
   std::thread client{[&guide] {
     using namespace std::chrono_literals;
+
     for (int i = 0; i < 100; ++i) {
       guide.SendSignal();
       std::this_thread::sleep_for(5s);

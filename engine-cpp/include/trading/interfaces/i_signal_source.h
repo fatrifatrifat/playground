@@ -14,8 +14,7 @@ namespace quarcc {
 
 class ISignalSource {
 public:
-  using SignalCallback =
-      std::move_only_function<void(const v1::StrategySignal &signal)>;
+  using SignalCallback = std::function<void()>;
 
   virtual ~ISignalSource() = default;
 
