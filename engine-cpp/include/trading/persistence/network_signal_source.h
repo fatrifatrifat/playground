@@ -21,6 +21,7 @@ private:
                             v1::Result *result) override;
   };
 
+  StrategySignalGuideImpl service_;
   std::unique_ptr<grpc::Server> server_;
 };
 
