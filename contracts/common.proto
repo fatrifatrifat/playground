@@ -2,88 +2,20 @@ syntax = "proto3";
 
 package quarcc.v1;
 
-option cc_enable_arenas = true;
-
-// NOTE: monetary/price/qty values use fixed-point e8 where applicable:
-// real_value = integer_value / 1e8
-
-enum Environment {
-  ENV_UNSPECIFIED = 0;
-  ENV_BACKTEST = 1;
-  ENV_PAPER = 2;
-  ENV_LIVE = 3;
+message Timestamp {
+  int64 seconds = 1;
+  int32 nanos = 2;
 }
 
-enum AssetClass {
-  ASSET_UNSPECIFIED = 0;
-  ASSET_EQUITY = 1;
-  ASSET_CRYPTO = 2;
-  ASSET_FUTURE = 3;
-  ASSET_OPTION = 4;
-  ASSET_FX = 5;
-  ASSET_BOND = 6;
-  ASSET_ETF = 7;
+message Money {
+  string currency = 1;  // "USD"
+  double amount = 2;
 }
 
 enum Side {
-  SIDE_UNSPECIFIED = 0;
-  SIDE_BUY = 1;
-  SIDE_SELL = 2;
-  SIDE_FLAT = 3;
+  UNKNOWN_SIDE = 0;
+  BUY = 1;
+  SELL = 2;
 }
 
-enum OrdType {
-  ORD_TYPE_UNSPECIFIED = 0;
-  ORD_MARKET = 1;
-  ORD_LIMIT = 2;
-  ORD_STOP = 3;
-  ORD_STOP_LIMIT = 4;
-  ORD_POST_ONLY = 5;
-}
-
-enum TimeInForce {
-  TIF_UNSPECIFIED = 0;
-  TIF_DAY = 1;
-  TIF_GTC = 2;
-  TIF_IOC = 3;
-  TIF_FOK = 4;
-}
-
-enum OrderStatus {
-  ORDER_STATUS_UNSPECIFIED = 0;
-  ORDER_NEW = 1;
-  ORDER_ACK = 2;
-  ORDER_PARTIAL_FILL = 3;
-  ORDER_FILLED = 4;
-  ORDER_CANCELED = 5;
-  ORDER_REPLACED = 6;
-  ORDER_REJECTED = 7;
-  ORDER_EXPIRED = 8;
-}
-
-message EventMeta {
-  int32 schema_version = 1;      // contract schema version
-  uint64 seq = 2;                // monotonic sequence per stream
-  int64 ts_event_ns = 3;         // event source timestamp (ns)
-  int64 ts_ingest_ns = 4;        // gateway/engine ingest timestamp (ns)
-  string source = 5;             // e.g. "nautilus", "ibkr_adapter"
-  string correlation_id = 6;     // end-to-end correlation
-  string trace_id = 7;           // observability tracing
-  Environment env = 8;
-}
-
-message InstrumentRef {
-  string instrument_id = 1;      // canonical ID, e.g. "BINANCE:BTCUSDT.SPOT"
-  string symbol = 2;             // e.g. "BTCUSDT"
-  string venue = 3;              // e.g. "BINANCE"
-  AssetClass asset_class = 4;    // equity/crypto/bond/...
-  string base_ccy = 5;           // e.g. "BTC"
-  string quote_ccy = 6;          // e.g. "USDT"
-  int64 lot_size_e8 = 7;         // minimum tradable size
-  int64 tick_size_e8 = 8;        // minimum price increment
-}
-
-message Tag {
-  string key = 1;
-  string value = 2;
-}
+message Empty {}

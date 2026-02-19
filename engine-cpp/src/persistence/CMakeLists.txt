@@ -3,8 +3,6 @@ cmake_minimum_required(VERSION 3.24)
 add_library(trading_persistence STATIC
     sqlite_order_store.cpp
     sqlite_journal.cpp
-    filesystem_signal_source.cpp
-    network_signal_source.cpp
 )
 
 add_library(trading::persistence ALIAS trading_persistence)

@@ -4,73 +4,12 @@ package quarcc.v1;
 
 import "common.proto";
 
-option cc_enable_arenas = true;
-
-enum SignalType {
-  SIGNAL_UNSPECIFIED = 0;
-  SIGNAL_ENTRY = 1;
-  SIGNAL_EXIT = 2;
-  SIGNAL_REDUCE = 3;
-  SIGNAL_REVERSE = 4;
-  SIGNAL_HEDGE = 5;
-}
-
-enum Urgency {
-  URGENCY_UNSPECIFIED = 0;
-  URGENCY_LOW = 1;
-  URGENCY_NORMAL = 2;
-  URGENCY_HIGH = 3;
-}
-
-message FeatureValue {
-  string name = 1;
-  double value = 2;
-}
-
 message StrategySignal {
-  EventMeta meta = 1;
-
-  string signal_id = 2;          // globally unique
-  string strategy_id = 3;        // e.g. "stat_arb_v1"
-  string strategy_version = 4;   // e.g. "1.3.2"
-  string research_run_id = 5;    // links to experiment run
-
-  InstrumentRef instrument = 6;
-  SignalType signal_type = 7;
-  Side side = 8;                 // intended direction
-
-  // Intent targets (fixed-point e8)
-  int64 target_position_e8 = 9;  // desired position after execution
-  int64 order_qty_e8 = 10;       // preferred order quantity
-  int64 limit_price_e8 = 11;     // 0 means "not set"
-
-  double confidence = 12;        // 0..1
-  Urgency urgency = 13;
-  uint64 ttl_ms = 14;            // time-to-live of signal
-
-  string thesis = 15;            // short human-readable reason
-  repeated FeatureValue features = 16;
-  repeated Tag tags = 17;
-  map<string, string> context = 18;
-}
-
-message StrategySignalBatch {
-  EventMeta meta = 1;
-  string batch_id = 2;
-  repeated StrategySignal signals = 3;
-}
-
-enum State {
-  ACCEPTED = 0;
-  DECLINED = 1;
-  WAITING = 2;
-}
-
-message Result {
-  State state = 1;
-}
-
-service StrategySignalGuide {
-  rpc SendSignal(StrategySignal) returns (Result) {}
-  rpc SendSignals(stream StrategySignal) returns (stream Result) {}
+  string strategy_id = 1;
+  string symbol = 2;
+  Side side = 3;
+  double target_quantity = 4;
+  double confidence = 5;
+  Timestamp generated_at = 6;
+  map<string, string> metadata = 7;
 }

@@ -2,45 +2,24 @@ syntax = "proto3";
 
 package quarcc.v1;
 
+import "common.proto";
 import "strategy_signal.proto";
 import "order.proto";
 import "execution.proto";
-import "common.proto";
 
 service ExecutionService {
-  // Submit a signal, get order confirmation back
   rpc SubmitSignal(StrategySignal) returns (SubmitSignalResponse);
-  
-  // Submit multiple signals at once (batching)
-  rpc SubmitSignalBatch(SignalBatch) returns (BatchResponse);
-  
-  // Stream signals continuously (Python keeps connection open)
   rpc StreamSignals(stream StrategySignal) returns (stream SubmitSignalResponse);
-  
-  // Query current positions
   rpc GetPosition(GetPositionRequest) returns (Position);
   rpc GetAllPositions(Empty) returns (PositionList);
-  
-  // Query order status
-  rpc GetOrderStatus(GetOrderRequest) returns (Order);
-  
   rpc ActivateKillSwitch(KillSwitchRequest) returns (Empty);
-  rpc CancelAllOrders(CancelAllRequest) returns (CancelAllResponse);
 }
 
 message SubmitSignalResponse {
   bool accepted = 1;
-  string order_id = 2;  // If accepted
-  string rejection_reason = 3;  // If rejected
-  string received_at = 4;
-}
-
-message SignalBatch {
-  repeated StrategySignal signals = 1;
-}
-
-message BatchResponse {
-  repeated SubmitSignalResponse responses = 1;
+  string order_id = 2;
+  string rejection_reason = 3;
+  Timestamp received_at = 4;
 }
 
 message GetPositionRequest {
@@ -59,15 +38,11 @@ message PositionList {
   repeated Position positions = 1;
 }
 
-message GetOrderRequest {
-  string order_id = 1;
-}
-
 message HealthResponse {
   bool healthy = 1;
   string gateway_status = 2;
   int32 pending_orders = 3;
-  string last_fill_time = 4;
+  Timestamp last_fill_time = 4;
   double daily_pnl = 5;
 }
 
@@ -75,13 +50,3 @@ message KillSwitchRequest {
   string reason = 1;
   string initiated_by = 2;
 }
-
-message CancelAllRequest {
-  string strategy_id = 1;  // Empty = cancel all strategies
-}
-
-message CancelAllResponse {
-  int32 orders_cancelled = 1;
-}
-
-message Empty {}

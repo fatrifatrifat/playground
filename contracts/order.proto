@@ -4,63 +4,28 @@ package quarcc.v1;
 
 import "common.proto";
 
-option cc_enable_arenas = true;
-
-message NewOrderIntent {
-  EventMeta meta = 1;
-
-  string intent_id = 2;          // unique intent id
-  string signal_id = 3;          // parent signal
-  string strategy_id = 4;
-  string strategy_version = 5;
-
-  InstrumentRef instrument = 6;
-  Side side = 7;
-  OrdType ord_type = 8;
-  TimeInForce tif = 9;
-
-  int64 qty_e8 = 10;
-  int64 limit_price_e8 = 11;     // required for LIMIT/STOP_LIMIT
-  int64 stop_price_e8 = 12;      // required for STOP/STOP_LIMIT
-  int64 max_slippage_bps = 13;   // execution guardrail
-  bool reduce_only = 14;
-
-  uint64 ttl_ms = 15;
-  repeated Tag tags = 16;
+enum OrderType {
+  UNKNOWN_TYPE = 0;
+  MARKET = 1;
+  LIMIT = 2;
+  STOP = 3;
+  STOP_LIMIT = 4;
 }
 
-message CancelOrderIntent {
-  EventMeta meta = 1;
-
-  string intent_id = 2;
-  string strategy_id = 3;
-  string client_order_id = 4;    // original clOrdId
-  string reason = 5;
+enum OrderStatus {
+  NEW = 0;
+  SUBMITTED = 1;
+  PARTIAL_FILL = 2;
+  FILLED = 3;
+  CANCELLED = 4;
+  REJECTED = 5;
 }
 
-message ReplaceOrderIntent {
-  EventMeta meta = 1;
-
-  string intent_id = 2;
-  string strategy_id = 3;
-  string client_order_id = 4;    // original clOrdId
-  int64 new_qty_e8 = 5;
-  int64 new_limit_price_e8 = 6;
-}
-
-message OrderCommand {
-  oneof command {
-    NewOrderIntent new_order = 1;
-    CancelOrderIntent cancel_order = 2;
-    ReplaceOrderIntent replace_order = 3;
-  }
-}
-
-message OrderAck {
-  EventMeta meta = 1;
-  string intent_id = 2;
-  bool accepted = 3;
-  repeated string reasons = 4;
+enum TimeInForce {
+  DAY = 0;
+  GTC = 1;  // Good till cancelled
+  IOC = 2;  // Immediate or cancel
+  FOK = 3;  // Fill or kill
 }
 
 message Order {
@@ -68,11 +33,12 @@ message Order {
   string symbol = 2;
   Side side = 3;
   double quantity = 4;
-  OrdType order_type = 5;
-  double price = 6;
-  string account_id = 7;
-  string timestamp = 8;
-  TimeInForce time_in_force = 9;
+  double price = 5;
+  OrderType type = 6;
+  OrderStatus status = 7;
+  TimeInForce time_in_force = 8;
+  string account_id = 9;
   string strategy_id = 10;
-  EventMeta meta = 11;
+  Timestamp created_at = 11;
+  map<string, string> metadata = 12;
 }

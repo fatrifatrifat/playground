@@ -41,10 +41,6 @@ private:
                                  const v1::Empty *request,
                                  v1::PositionList *response) override;
 
-    grpc::Status GetOrderStatus(grpc::ServerContext *context,
-                                const v1::GetOrderRequest *request,
-                                v1::Order *response) override;
-
     grpc::Status ActivateKillSwitch(grpc::ServerContext *context,
                                     const v1::KillSwitchRequest *request,
                                     v1::Empty *response) override;

@@ -7,13 +7,10 @@ find_package(Protobuf CONFIG REQUIRED)
 
 set(TRADING_PROTO_FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/common.proto
-    ${CMAKE_CURRENT_SOURCE_DIR}/market_data.proto
     ${CMAKE_CURRENT_SOURCE_DIR}/strategy_signal.proto
     ${CMAKE_CURRENT_SOURCE_DIR}/order.proto
     ${CMAKE_CURRENT_SOURCE_DIR}/execution.proto
     ${CMAKE_CURRENT_SOURCE_DIR}/execution_service.proto
-    ${CMAKE_CURRENT_SOURCE_DIR}/risk.proto
-    ${CMAKE_CURRENT_SOURCE_DIR}/gateway.proto
 )
 
 set(TRADING_PROTO_GEN_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)

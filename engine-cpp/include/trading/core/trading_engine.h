@@ -26,7 +26,6 @@ public:
   Result<OrderId> SubmitSignal(const v1::StrategySignal &req) override;
   Result<v1::Position> GetPosition(const v1::GetPositionRequest &req) override;
   Result<v1::PositionList> GetAllPositions(const v1::Empty &req) override;
-  Result<v1::Order> GetOrderStatus(const v1::GetOrderRequest &req) override;
   Result<void> ActivateKillSwitch(const v1::KillSwitchRequest &req) override;
 
 private:

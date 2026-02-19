@@ -9,9 +9,9 @@ ExecutionServiceClient::ExecutionServiceClient(
     : stub_(v1::ExecutionService::NewStub(std::move(channel))) {}
 
 void ExecutionServiceClient::SubmitSignal() {
-  static int qty = 0;
+  static double qty = 0.;
   v1::StrategySignal signal;
-  signal.set_order_qty_e8(qty++);
+  signal.set_target_quantity(qty++);
   v1::SubmitSignalResponse result;
   grpc::ClientContext context;
   grpc::Status status = stub_->SubmitSignal(&context, signal, &result);
@@ -81,11 +81,6 @@ Result<v1::PositionList> TradingEngine::GetAllPositions(const v1::Empty &) {
       Error{"GetAllPositions not implemented", ErrorType::Error});
 }
 
-Result<v1::Order> TradingEngine::GetOrderStatus(const v1::GetOrderRequest &) {
-  return std::unexpected(
-      Error{"GetOrderStatus not implemented", ErrorType::Error});
-}
-
 Result<void> TradingEngine::ActivateKillSwitch(const v1::KillSwitchRequest &) {
   return std::unexpected(
       Error{"ActivateKillSwitch not implemented", ErrorType::Error});
@@ -95,15 +90,15 @@ v1::Order
 TradingEngine::createOrderFromSignal(const v1::StrategySignal &signal) {
   v1::Order order;
   order.set_id(generateOrderId());
-  order.set_symbol(signal.instrument().symbol());
+  order.set_symbol(signal.symbol());
   order.set_side(signal.side());
-  order.set_quantity(signal.order_qty_e8());
-  order.set_order_type(v1::OrdType::ORD_MARKET);
+  order.set_quantity(signal.target_quantity());
+  order.set_type(v1::OrderType::MARKET);
   order.set_account_id("quarcc.Rifat");
-  order.set_timestamp(order.id());
-  order.set_time_in_force(v1::TimeInForce::TIF_DAY);
+  // order.created_at(order.id()); // TODO: Timestamp
+  order.set_time_in_force(v1::TimeInForce::DAY);
   order.set_strategy_id(signal.strategy_id());
-  order.mutable_meta()->CopyFrom(signal.meta());
+  // order.metadata(). = signal.metadata(); // TODO: Copy metadata from signal
   return order;
 }
 

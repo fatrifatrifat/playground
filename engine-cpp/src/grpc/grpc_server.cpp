@@ -45,7 +45,7 @@ grpc::Status gRPCServer::ExecutionServiceImpl::SubmitSignal(
 
   std::cout << "Received signal from " << context->peer() << " - "
             << request->strategy_id() << " " << request->side() << " "
-            << request->instrument().symbol() << std::endl;
+            << request->symbol() << std::endl;
 
   auto r = owner_->handler_->SubmitSignal(*request);
 
@@ -127,25 +127,6 @@ gRPCServer::ExecutionServiceImpl::GetAllPositions(grpc::ServerContext *context,
   auto r = owner_->handler_->GetAllPositions(*request);
   if (!r)
     return grpc::Status(grpc::StatusCode::INTERNAL, r.error().message_);
-
-  *response = std::move(r.value());
-  return grpc::Status::OK;
-}
-
-grpc::Status gRPCServer::ExecutionServiceImpl::GetOrderStatus(
-    grpc::ServerContext *context, const v1::GetOrderRequest *request,
-    v1::Order *response) {
-
-  if (!owner_ || !owner_->handler_) {
-    return grpc::Status(grpc::StatusCode::FAILED_PRECONDITION,
-                        "Server handler not initialized");
-  }
-
-  std::cout << "Received order request from " << context->peer() << std::endl;
-
-  auto r = owner_->handler_->GetOrderStatus(*request);
-  if (!r)
-    return grpc::Status(grpc::StatusCode::NOT_FOUND, r.error().message_);
 
   *response = std::move(r.value());
   return grpc::Status::OK;
