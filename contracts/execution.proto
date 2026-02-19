@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package quarcc.v1;
+
+import "common.proto";
+import "order.proto";
+
+message ExecutionReport {
+  string order_id = 1;
+  string symbol = 2;
+  Side side = 3;
+  double filled_quantity = 4;
+  double price = 5;
+  Timestamp fill_time = 6;
+  string execution_id = 7;
+}

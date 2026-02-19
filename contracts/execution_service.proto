@@ -1,0 +1,52 @@
+syntax = "proto3";
+
+package quarcc.v1;
+
+import "common.proto";
+import "strategy_signal.proto";
+import "order.proto";
+import "execution.proto";
+
+service ExecutionService {
+  rpc SubmitSignal(StrategySignal) returns (SubmitSignalResponse);
+  rpc StreamSignals(stream StrategySignal) returns (stream SubmitSignalResponse);
+  rpc GetPosition(GetPositionRequest) returns (Position);
+  rpc GetAllPositions(Empty) returns (PositionList);
+  rpc ActivateKillSwitch(KillSwitchRequest) returns (Empty);
+}
+
+message SubmitSignalResponse {
+  bool accepted = 1;
+  string order_id = 2;
+  string rejection_reason = 3;
+  Timestamp received_at = 4;
+}
+
+message GetPositionRequest {
+  string symbol = 1;
+}
+
+message Position {
+  string symbol = 1;
+  double quantity = 2;
+  double avg_price = 3;
+  double unrealized_pnl = 4;
+  double realized_pnl = 5;
+}
+
+message PositionList {
+  repeated Position positions = 1;
+}
+
+message HealthResponse {
+  bool healthy = 1;
+  string gateway_status = 2;
+  int32 pending_orders = 3;
+  Timestamp last_fill_time = 4;
+  double daily_pnl = 5;
+}
+
+message KillSwitchRequest {
+  string reason = 1;
+  string initiated_by = 2;
+}
