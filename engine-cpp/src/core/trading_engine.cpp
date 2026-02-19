@@ -7,6 +7,12 @@ namespace quarcc {
 void TradingEngine::Run() {
   GOOGLE_PROTOBUF_VERIFY_VERSION;
 
+  managers_.emplace(
+      StrategyId{"SMA_CROSS_v1.0"},
+      OrderManager::CreateOrderManager(
+          std::make_unique<PositionKeeper>(), std::make_unique<AlpacaGateway>(),
+          std::make_unique<LogJournal>(), std::make_unique<RiskManager>()));
+
   gateway_ = std::make_shared<AlpacaGateway>();
   server_ = std::make_unique<gRPCServer>("0.0.0.0:50051", *this);
 
@@ -22,15 +28,10 @@ void TradingEngine::Run() {
 }
 
 Result<OrderId> TradingEngine::SubmitSignal(const v1::StrategySignal &signal) {
-  v1::Order order = createOrderFromSignal(signal);
-  gateway_->submitOrder(order);
-  return order.id();
-
-  // Real version (roughly):
-  // auto it = managers_.find(signal.strategy_id());
-  // if (it == managers_.end()) return std::unexpected(Error{"Unknown strategy",
-  // ErrorType::Error}); return it->second.ProcessSignal(signal); // validate +
-  // persist + submit
+  auto it = managers_.find(signal.strategy_id());
+  if (it == managers_.end())
+    return std::unexpected(Error{"Unknown strategy", ErrorType::Error});
+  return it->second->processSignal(signal);
 }
 
 Result<v1::Position>
@@ -47,22 +48,6 @@ Result<v1::PositionList> TradingEngine::GetAllPositions(const v1::Empty &) {
 Result<void> TradingEngine::ActivateKillSwitch(const v1::KillSwitchRequest &) {
   return std::unexpected(
       Error{"ActivateKillSwitch not implemented", ErrorType::Error});
-}
-
-v1::Order
-TradingEngine::createOrderFromSignal(const v1::StrategySignal &signal) {
-  v1::Order order;
-  order.set_id(generateOrderId());
-  order.set_symbol(signal.symbol());
-  order.set_side(signal.side());
-  order.set_quantity(signal.target_quantity());
-  order.set_type(v1::OrderType::MARKET);
-  order.set_account_id("quarcc.Rifat");
-  // order.created_at(order.id()); // TODO: Timestamp
-  order.set_time_in_force(v1::TimeInForce::DAY);
-  order.set_strategy_id(signal.strategy_id());
-  // order.metadata(). = signal.metadata(); // TODO: Copy metadata from signal
-  return order;
 }
 
 } // namespace quarcc

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <trading/core/order_manager.h>
 #include <trading/gateways/alpaca_fix_gateway.h>
 #include <trading/grpc/grpc_server.h>
 #include <trading/interfaces/i_execution_service_handler.h>
@@ -10,6 +11,8 @@
 namespace quarcc {
 
 class TradingEngine final : public IExecutionServiceHandler {
+  using StrategyId = std::string;
+
 public:
   void Run();
 
@@ -19,12 +22,10 @@ public:
   Result<void> ActivateKillSwitch(const v1::KillSwitchRequest &req) override;
 
 private:
-  v1::Order createOrderFromSignal(const v1::StrategySignal &signal);
-
   std::shared_ptr<IExecutionGateway> gateway_;
   std::unique_ptr<gRPCServer> server_;
 
-  // std::map<StrategyId, OrderManager> managers_;  // your real data
+  std::unordered_map<StrategyId, std::unique_ptr<OrderManager>> managers_;
 };
 
 } // namespace quarcc
