@@ -8,12 +8,12 @@ void AlpacaGateway::submitOrder(const v1::Order &order) {
   std::cout << "Submit Order. Quantity: " << order.quantity() << '\n';
 }
 
-void AlpacaGateway::cancelOrder(const OrderId &orderId) {
+void AlpacaGateway::cancelOrder(const OrderId & /*orderId*/) {
   std::cout << "Cancel Order\n";
 }
 
-void AlpacaGateway::replaceOrder(const OrderId &orderId,
-                                 const v1::Order &new_order) {
+void AlpacaGateway::replaceOrder(const OrderId & /*orderId*/,
+                                 const v1::Order & /*new_order*/) {
   std::cout << "Replace Order\n";
 }
 

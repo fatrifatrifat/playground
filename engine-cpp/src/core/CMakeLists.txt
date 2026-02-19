@@ -31,6 +31,7 @@ target_link_libraries(trading_engine
         trading_core
     PRIVATE
         trading_gateways
+        trading_grpc
         trading_persistence
         trading_replay
         trading_observability
