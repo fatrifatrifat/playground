@@ -133,7 +133,7 @@ if __name__ == "__main__":
     # Submit a buy signal
     print("\n--- Submitting BUY signal ---")
     order_id = client.submit_signal(
-        strategy_id="SMA_CROSS_v1.0",
+        strategy_id="hi",
         symbol="AAPL",
         side="BUY",
         quantity=100,
