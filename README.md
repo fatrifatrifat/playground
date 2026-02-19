@@ -7,10 +7,16 @@ Arch:
 sudo pacman -S websocketpp protobuf grpc
 ```
 
-Build:
+Build Server:
 ```bash
 cmake -S . -B build
 cmake --build build -j
+```
+
+Build Client:
+```bash
+python -m pip install --upgrade pip
+python -m pip install grpcio grpcio-tools protobuf
 bash ./scripts/generate_protos_python.py
 ```
 
