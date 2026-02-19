@@ -4,53 +4,16 @@
 
 namespace quarcc {
 
-ExecutionServiceClient::ExecutionServiceClient(
-    std::shared_ptr<grpc::ChannelInterface> channel)
-    : stub_(v1::ExecutionService::NewStub(std::move(channel))) {}
-
-void ExecutionServiceClient::SubmitSignal() {
-  static double qty = 0.;
-  v1::StrategySignal signal;
-  signal.set_target_quantity(qty++);
-  v1::SubmitSignalResponse result;
-  grpc::ClientContext context;
-  grpc::Status status = stub_->SubmitSignal(&context, signal, &result);
-  if (!status.ok()) {
-    std::cout << "[Client] SubmitSignal rpc failed.\n";
-    return;
-  }
-  if (result.accepted()) {
-    std::cout << "[Client] Signal Accepted\n";
-    return;
-  }
-  std::cout << "[Client] Signal Declined. Reason: " << result.rejection_reason()
-            << std::endl;
-}
-
 void TradingEngine::Run() {
   GOOGLE_PROTOBUF_VERIFY_VERSION;
 
   gateway_ = std::make_shared<AlpacaGateway>();
-
   server_ = std::make_unique<gRPCServer>("0.0.0.0:50051", *this);
 
   std::thread server_thread{[this] {
     server_->start();
     server_->wait();
   }};
-
-  ExecutionServiceClient guide(grpc::CreateChannel(
-      "localhost:50051", grpc::InsecureChannelCredentials()));
-
-  std::thread client_thread{[&guide] {
-    using namespace std::chrono_literals;
-    for (int i = 0; i < 100; ++i) {
-      guide.SubmitSignal();
-      std::this_thread::sleep_for(5s);
-    }
-  }};
-
-  client_thread.join();
 
   server_->shutdown();
   server_thread.join();

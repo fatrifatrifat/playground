@@ -105,7 +105,7 @@ grpc::Status gRPCServer::ExecutionServiceImpl::GetPosition(
 
   auto r = owner_->handler_->GetPosition(*request);
   if (!r)
-    return grpc::Status(grpc::StatusCode::NOT_FOUND, r.error().message_);
+    return grpc::Status(grpc::StatusCode::INTERNAL, r.error().message_);
 
   *response = std::move(r.value());
   return grpc::Status::OK;

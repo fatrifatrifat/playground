@@ -9,16 +9,6 @@
 
 namespace quarcc {
 
-class ExecutionServiceClient {
-public:
-  explicit ExecutionServiceClient(
-      std::shared_ptr<grpc::ChannelInterface> channel);
-  void SubmitSignal();
-
-private:
-  std::unique_ptr<v1::ExecutionService::Stub> stub_;
-};
-
 class TradingEngine final : public IExecutionServiceHandler {
 public:
   void Run();
