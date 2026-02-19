@@ -3,29 +3,26 @@
 #include "execution_service.grpc.pb.h"
 #include "execution_service.pb.h"
 
-#include <trading/utils/result.h>
+#include <grpcpp/grpcpp.h>
+#include <memory>
+#include <string>
+
+#include <trading/interfaces/i_execution_service_handler.h>
 
 namespace quarcc {
 
 class gRPCServer {
-  using StrategySignalCallback =
-      std::move_only_function<Result<OrderId>(const v1::StrategySignal &)>;
-
 public:
-  gRPCServer(const std::string &server_address);
+  gRPCServer(std::string server_address, IExecutionServiceHandler &handler);
 
   void start();
   void wait();
   void shutdown();
 
-  void setCallback(StrategySignalCallback &&callback);
-
 private:
-  Result<OrderId> InvokeCallback_(const v1::StrategySignal &signal);
-
-  class ExecutionServiceImpl : public v1::ExecutionService::Service {
+  class ExecutionServiceImpl final : public v1::ExecutionService::Service {
   public:
-    ExecutionServiceImpl(gRPCServer *owner);
+    explicit ExecutionServiceImpl(gRPCServer *owner);
 
     grpc::Status SubmitSignal(grpc::ServerContext *context,
                               const v1::StrategySignal *request,
@@ -56,10 +53,13 @@ private:
     gRPCServer *owner_ = nullptr;
   };
 
+private:
+  friend class ExecutionServiceImpl;
+
   std::string server_address_;
+  IExecutionServiceHandler *handler_ = nullptr;
   std::unique_ptr<ExecutionServiceImpl> service_;
   std::unique_ptr<grpc::Server> server_;
-  StrategySignalCallback callback_;
 };
 
 } // namespace quarcc
