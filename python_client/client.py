@@ -51,10 +51,9 @@ class ExecutionClient:
         signal.confidence = confidence
 
         # Set timestamp
-        import time
+        from datetime import datetime
 
-        signal.generated_at.seconds = int(time.time())
-        signal.generated_at.nanos = int((time.time() % 1) * 1e9)
+        signal.generated_at = datetime.now().isoformat()
 
         try:
             # Submit via gRPC
@@ -65,6 +64,91 @@ class ExecutionClient:
                 return response.order_id
             else:
                 self.logger.warning(f"✗ Signal rejected: {response.rejection_reason}")
+                return None
+
+        except grpc.RpcError as e:
+            self.logger.error(f"gRPC error: {e.code()} - {e.details()}")
+            return None
+
+    def cancel_signal(
+        self,
+        strategy_id: str,
+        order_id: str,
+    ) -> optional[str]:
+        """
+        Submit a cancel signal.
+
+        returns:
+            Nothing.
+        """
+        # create signal
+        signal = strategy_signal_pb2.CancelSignal()
+        signal.strategy_id = strategy_id
+        signal.order_id = order_id
+
+        # set timestamp
+        from datetime import datetime
+
+        signal.generated_at = datetime.now().isoformat()
+
+        try:
+            # submit via grpc
+            response = self.stub.CancelOrder(signal)
+
+            if response.accepted:
+                self.logger.info(f"✓ Cancel signal accepted!")
+            else:
+                self.logger.warning(
+                    f"✗ Cancel signal rejected: {response.rejection_reason}"
+                )
+                return None
+
+        except grpc.RpcError as e:
+            self.logger.error(f"gRPC error: {e.code()} - {e.details()}")
+            return None
+
+    def replace_order(
+        self,
+        order_id: str,
+        strategy_id: str,
+        symbol: str,
+        side: str,  # "BUY" or "SELL"
+        quantity: float,
+        confidence: float = 1.0,
+    ) -> optional[str]:
+        """
+        Submit a replace signal.
+
+        returns:
+            Order ID if accepted, None if rejected.
+        """
+        # create signal
+        signal = strategy_signal_pb2.ReplaceSignal()
+        signal.strategy_id = strategy_id
+        signal.symbol = symbol
+        signal.side = common_pb2.Side.BUY if side == "BUY" else common_pb2.Side.SELL
+        signal.target_quantity = quantity
+        signal.confidence = confidence
+        signal.order_id = order_id
+
+        # set timestamp
+        from datetime import datetime
+
+        signal.generated_at = datetime.now().isoformat()
+
+        try:
+            # submit via grpc
+            response = self.stub.ReplaceOrder(signal)
+
+            if response.accepted:
+                self.logger.info(
+                    f"✓ Replace signal accepted! Order ID: {response.order_id}"
+                )
+                return response.order_id
+            else:
+                self.logger.warning(
+                    f"✗ Replace signal rejected: {response.rejection_reason}"
+                )
                 return None
 
         except grpc.RpcError as e:
@@ -133,7 +217,7 @@ if __name__ == "__main__":
     # Submit a buy signal
     print("\n--- Submitting BUY signal ---")
     order_id = client.submit_signal(
-        strategy_id="hi",
+        strategy_id="SMA_CROSS_v1.0",
         symbol="AAPL",
         side="BUY",
         quantity=100,
@@ -152,6 +236,35 @@ if __name__ == "__main__":
         print("\n--- Checking position ---")
         position = client.get_position("AAPL")
         print(f"Position: {position}")
+
+        print("\n--- Submitting CANCEL signal ---")
+        client.cancel_signal(
+            strategy_id="SMA_CROSS_v1.0",
+            order_id="order",
+        )
+
+        print("\n--- Submitting REPLACE signal ---")
+        order_id = client.replace_order(
+            strategy_id="SMA_CROSS_v1.0",
+            order_id="order",
+            symbol="AAPL",
+            side="BUY",
+            quantity=100,
+            confidence=0.85,
+        )
+
+        if order_id:
+            print(f"Order submitted: {order_id}")
+
+            # Wait a bit
+            import time
+
+            time.sleep(1)
+
+            # Check position
+            print("\n--- Checking position ---")
+            position = client.get_position("AAPL")
+            print(f"Position: {position}")
 
     # Get all positions
     print("\n--- All positions ---")

@@ -28,6 +28,14 @@ private:
                               const v1::StrategySignal *request,
                               v1::SubmitSignalResponse *response) override;
 
+    grpc::Status CancelOrder(grpc::ServerContext *context,
+                             const v1::CancelSignal *request,
+                             v1::CancelOrderResponse *response) override;
+
+    grpc::Status ReplaceOrder(grpc::ServerContext *context,
+                              const v1::ReplaceSignal *request,
+                              v1::ReplaceOrderResponse *response) override;
+
     grpc::Status StreamSignals(
         grpc::ServerContext *context,
         grpc::ServerReaderWriter<v1::SubmitSignalResponse, v1::StrategySignal>

@@ -15,6 +15,18 @@ Result<OrderId> OrderManager::processSignal(const v1::StrategySignal &signal) {
   return order.id();
 }
 
+Result<std::monostate>
+OrderManager::processSignal(const v1::CancelSignal &signal) {
+  gateway_->cancelOrder(signal.order_id());
+  return std::monostate{};
+}
+
+Result<OrderId> OrderManager::processSignal(const v1::ReplaceSignal &signal) {
+  v1::Order order = createOrderFromSignal(signal);
+  gateway_->replaceOrder(signal.order_id(), order);
+  return order.id();
+}
+
 OrderManager::OrderManager(std::unique_ptr<PositionKeeper> pk,
                            std::unique_ptr<IExecutionGateway> gw,
                            std::unique_ptr<LogJournal> lj,
@@ -25,7 +37,22 @@ OrderManager::OrderManager(std::unique_ptr<PositionKeeper> pk,
 v1::Order
 OrderManager::createOrderFromSignal(const v1::StrategySignal &signal) {
   v1::Order order;
-  order.set_id(generateOrderId());
+  order.set_id(getCurrentTime());
+  order.set_symbol(signal.symbol());
+  order.set_side(signal.side());
+  order.set_quantity(signal.target_quantity());
+  order.set_type(v1::OrderType::MARKET);
+  order.set_account_id("quarcc.Rifat");
+  // order.created_at(order.id()); // TODO: Timestamp
+  order.set_time_in_force(v1::TimeInForce::DAY);
+  order.set_strategy_id(signal.strategy_id());
+  // order.metadata(). = signal.metadata(); // TODO: Copy metadata from signal
+  return order;
+}
+
+v1::Order OrderManager::createOrderFromSignal(const v1::ReplaceSignal &signal) {
+  v1::Order order;
+  order.set_id(getCurrentTime());
   order.set_symbol(signal.symbol());
   order.set_side(signal.side());
   order.set_quantity(signal.target_quantity());

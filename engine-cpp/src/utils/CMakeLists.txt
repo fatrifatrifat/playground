@@ -2,7 +2,6 @@ cmake_minimum_required(VERSION 3.24)
 
 add_library(trading_utils STATIC
     order_id_generator.cpp
-    pnl_tracker.cpp
 )
 
 add_library(trading::utils ALIAS trading_utils)

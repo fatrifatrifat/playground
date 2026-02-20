@@ -1,5 +1,6 @@
 #pragma once
 
+#include "order.pb.h"
 #include "strategy_signal.pb.h"
 
 #include <trading/core/position_keeper.h>
@@ -18,6 +19,8 @@ public:
       std::unique_ptr<LogJournal> lj, std::unique_ptr<RiskManager> rm);
 
   Result<OrderId> processSignal(const v1::StrategySignal &signal);
+  Result<std::monostate> processSignal(const v1::CancelSignal &signal);
+  Result<OrderId> processSignal(const v1::ReplaceSignal &signal);
 
 private:
   OrderManager(std::unique_ptr<PositionKeeper> pk,
@@ -25,6 +28,7 @@ private:
                std::unique_ptr<LogJournal> lj, std::unique_ptr<RiskManager> rm);
 
   v1::Order createOrderFromSignal(const v1::StrategySignal &signal);
+  v1::Order createOrderFromSignal(const v1::ReplaceSignal &signal);
 
 private:
   std::unique_ptr<PositionKeeper> position_keeper_;

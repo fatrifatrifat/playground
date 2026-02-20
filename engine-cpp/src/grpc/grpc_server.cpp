@@ -1,4 +1,5 @@
 #include <trading/grpc/grpc_server.h>
+#include <trading/utils/order_id_generator.h>
 
 #include <iostream>
 #include <utility>
@@ -56,6 +57,66 @@ grpc::Status gRPCServer::ExecutionServiceImpl::SubmitSignal(
   }
 
   response->set_accepted(true);
+  response->set_order_id(r.value());
+
+  return grpc::Status::OK;
+}
+
+grpc::Status gRPCServer::ExecutionServiceImpl::CancelOrder(
+    grpc::ServerContext *context, const v1::CancelSignal *request,
+    v1::CancelOrderResponse *response) {
+
+  response->set_received_at(getCurrentTime());
+
+  if (!owner_ || !owner_->handler_) {
+    response->set_accepted(false);
+    response->set_rejection_reason("Server handler not initialized");
+    return grpc::Status(grpc::ABORTED, "Server handler not initialized");
+  }
+
+  std::cout << "Cancel signal received from " << context->peer() << " - "
+            << request->strategy_id() << " " << request->order_id()
+            << std::endl;
+
+  auto r = owner_->handler_->CancelOrder(*request);
+
+  if (!r) {
+    response->set_accepted(false);
+    response->set_rejection_reason(r.error().message_);
+    return grpc::Status(grpc::INVALID_ARGUMENT, r.error().message_);
+  }
+
+  response->set_accepted(true);
+
+  return grpc::Status::OK;
+}
+
+grpc::Status gRPCServer::ExecutionServiceImpl::ReplaceOrder(
+    grpc::ServerContext *context, const v1::ReplaceSignal *request,
+    v1::ReplaceOrderResponse *response) {
+
+  response->set_received_at(getCurrentTime());
+
+  if (!owner_ || !owner_->handler_) {
+    response->set_accepted(false);
+    response->set_rejection_reason("Server handler not initialized");
+    return grpc::Status(grpc::ABORTED, "Server handler not initialized");
+  }
+
+  std::cout << "Replace signal received from " << context->peer() << " - "
+            << request->strategy_id() << " " << request->side() << " "
+            << request->symbol() << request->order_id() << std::endl;
+
+  auto r = owner_->handler_->ReplaceOrder(*request);
+
+  if (!r) {
+    response->set_accepted(false);
+    response->set_rejection_reason(r.error().message_);
+    return grpc::Status(grpc::INVALID_ARGUMENT, r.error().message_);
+  }
+
+  response->set_accepted(true);
+  response->set_order_id(r.value());
 
   return grpc::Status::OK;
 }

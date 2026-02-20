@@ -33,7 +33,6 @@ target_link_libraries(trading_engine
         trading_gateways
         trading_grpc
         trading_persistence
-        trading_replay
         trading_observability
         trading_utils
         Threads::Threads

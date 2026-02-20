@@ -17,6 +17,5 @@ struct Error {
 };
 
 template <typename T> using Result = std::expected<T, Error>;
-using OrderId = std::string;
 
 } // namespace quarcc

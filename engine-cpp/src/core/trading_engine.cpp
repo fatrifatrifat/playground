@@ -13,7 +13,6 @@ void TradingEngine::Run() {
           std::make_unique<PositionKeeper>(), std::make_unique<AlpacaGateway>(),
           std::make_unique<LogJournal>(), std::make_unique<RiskManager>()));
 
-  gateway_ = std::make_shared<AlpacaGateway>();
   server_ = std::make_unique<gRPCServer>("0.0.0.0:50051", *this);
 
   std::thread server_thread{[this] {
@@ -34,6 +33,21 @@ Result<OrderId> TradingEngine::SubmitSignal(const v1::StrategySignal &signal) {
   return it->second->processSignal(signal);
 }
 
+Result<std::monostate>
+TradingEngine::CancelOrder(const v1::CancelSignal &signal) {
+  auto it = managers_.find(signal.strategy_id());
+  if (it == managers_.end())
+    return std::unexpected(Error{"Unknown strategy", ErrorType::Error});
+  return it->second->processSignal(signal);
+}
+
+Result<OrderId> TradingEngine::ReplaceOrder(const v1::ReplaceSignal &signal) {
+  auto it = managers_.find(signal.strategy_id());
+  if (it == managers_.end())
+    return std::unexpected(Error{"Unknown strategy", ErrorType::Error});
+  return it->second->processSignal(signal);
+}
+
 Result<v1::Position>
 TradingEngine::GetPosition(const v1::GetPositionRequest &) {
   return std::unexpected(
@@ -45,7 +59,8 @@ Result<v1::PositionList> TradingEngine::GetAllPositions(const v1::Empty &) {
       Error{"GetAllPositions not implemented", ErrorType::Error});
 }
 
-Result<void> TradingEngine::ActivateKillSwitch(const v1::KillSwitchRequest &) {
+Result<std::monostate>
+TradingEngine::ActivateKillSwitch(const v1::KillSwitchRequest &) {
   return std::unexpected(
       Error{"ActivateKillSwitch not implemented", ErrorType::Error});
 }

@@ -39,6 +39,5 @@ message Order {
   TimeInForce time_in_force = 8;
   string account_id = 9;
   string strategy_id = 10;
-  Timestamp created_at = 11;
-  map<string, string> metadata = 12;
+  string created_at = 11;
 }

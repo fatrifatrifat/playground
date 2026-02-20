@@ -1,5 +1,6 @@
 #pragma once
 
+#include <trading/utils/order_id_generator.h>
 #include <trading/utils/result.h>
 
 #include "order.pb.h"

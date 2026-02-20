@@ -1,9 +1,7 @@
 cmake_minimum_required(VERSION 3.24)
 
 set(GATEWAY_SOURCES
-    paper_trading_gateway.cpp
     alpaca_fix_gateway.cpp
-    websocket_md_gateway.cpp
 )
 
 set(_HAS_FIX 0)
@@ -21,16 +19,16 @@ if(TRADING_ENABLE_FIX_GATEWAY)
 endif()
 
 # ---- Optional websocket gateway ----
-if(TRADING_ENABLE_WS_GATEWAY)
-    find_package(websocketpp CONFIG QUIET)
-    if(websocketpp_FOUND)
-        find_package(OpenSSL REQUIRED)
-        list(APPEND GATEWAY_SOURCES websocket_md_gateway.cpp)
-        set(_HAS_WS 1)
-    else()
-        message(WARNING "TRADING_ENABLE_WS_GATEWAY=ON but websocketpp not found. Skipping websocket_md_gateway.cpp.")
-    endif()
-endif()
+# if(TRADING_ENABLE_WS_GATEWAY)
+#     find_package(websocketpp CONFIG QUIET)
+#     if(websocketpp_FOUND)
+#         find_package(OpenSSL REQUIRED)
+#         list(APPEND GATEWAY_SOURCES websocket_md_gateway.cpp)
+#         set(_HAS_WS 1)
+#     else()
+#         message(WARNING "TRADING_ENABLE_WS_GATEWAY=ON but websocketpp not found. Skipping websocket_md_gateway.cpp.")
+#     endif()
+# endif()
 
 add_library(trading_gateways STATIC ${GATEWAY_SOURCES})
 add_library(trading::gateways ALIAS trading_gateways)
