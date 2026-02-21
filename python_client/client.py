@@ -232,10 +232,10 @@ if __name__ == "__main__":
 
         time.sleep(1)
 
-        # Check position
-        print("\n--- Checking position ---")
-        position = client.get_position("AAPL")
-        print(f"Position: {position}")
+        # # Check position
+        # print("\n--- Checking position ---")
+        # position = client.get_position("AAPL")
+        # print(f"Position: {position}")
 
         print("\n--- Submitting CANCEL signal ---")
         client.cancel_signal(
@@ -256,21 +256,21 @@ if __name__ == "__main__":
         if order_id:
             print(f"Order submitted: {order_id}")
 
-            # Wait a bit
+            # # Wait a bit
             import time
 
             time.sleep(1)
 
-            # Check position
-            print("\n--- Checking position ---")
-            position = client.get_position("AAPL")
-            print(f"Position: {position}")
+            # # Check position
+            # print("\n--- Checking position ---")
+            # position = client.get_position("AAPL")
+            # print(f"Position: {position}")
 
-    # Get all positions
-    print("\n--- All positions ---")
-    positions = client.get_all_positions()
-    for pos in positions:
-        print(f"{pos['symbol']}: {pos['quantity']} shares @ ${pos['avg_price']:.2f}")
+    # # Get all positions
+    # print("\n--- All positions ---")
+    # positions = client.get_all_positions()
+    # for pos in positions:
+    #     print(f"{pos['symbol']}: {pos['quantity']} shares @ ${pos['avg_price']:.2f}")
 
     # Close
     client.close()
