@@ -35,6 +35,7 @@ private:
   std::unique_ptr<IExecutionGateway> gateway_;
   std::unique_ptr<LogJournal> journal_;
   std::unique_ptr<RiskManager> risk_manager_;
+  std::unique_ptr<OrderIdGenerator> id_generator_;
 };
 
 } // namespace quarcc

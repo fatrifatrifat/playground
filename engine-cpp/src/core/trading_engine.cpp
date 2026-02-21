@@ -7,22 +7,23 @@ namespace quarcc {
 void TradingEngine::Run() {
   GOOGLE_PROTOBUF_VERIFY_VERSION;
 
+  // Initializing managers
   managers_.emplace(
       StrategyId{"SMA_CROSS_v1.0"},
       OrderManager::CreateOrderManager(
           std::make_unique<PositionKeeper>(), std::make_unique<AlpacaGateway>(),
           std::make_unique<LogJournal>(), std::make_unique<RiskManager>()));
 
+  // Setting up the server
   server_ = std::make_unique<gRPCServer>("0.0.0.0:50051", *this);
+  server_->start();
 
-  std::thread server_thread{[this] {
-    server_->start();
-    server_->wait();
-  }};
+  while (running_) {
+    // Process fills
+    // Update metrics
+  }
 
   server_->shutdown();
-  server_thread.join();
-
   google::protobuf::ShutdownProtobufLibrary();
 }
 

@@ -26,6 +26,7 @@ private:
   ActivateKillSwitch(const v1::KillSwitchRequest &req) override;
 
 private:
+  std::atomic<bool> running_{true};
   std::unique_ptr<gRPCServer> server_;
   std::unordered_map<StrategyId, std::unique_ptr<OrderManager>> managers_;
 };

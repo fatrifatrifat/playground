@@ -11,9 +11,9 @@ class IExecutionGateway {
 public:
   virtual ~IExecutionGateway() = default;
 
-  virtual void submitOrder(const v1::Order &order) = 0;
-  virtual void cancelOrder(const OrderId &orderId) = 0;
-  virtual void replaceOrder(const OrderId &orderId,
+  virtual Result<OrderId> submitOrder(const v1::Order &order) = 0;
+  virtual Result<std::monostate> cancelOrder(const OrderId &orderId) = 0;
+  virtual Result<OrderId> replaceOrder(const OrderId &orderId,
                             const v1::Order &new_order) = 0;
 };
 

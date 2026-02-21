@@ -66,7 +66,7 @@ grpc::Status gRPCServer::ExecutionServiceImpl::CancelOrder(
     grpc::ServerContext *context, const v1::CancelSignal *request,
     v1::CancelOrderResponse *response) {
 
-  response->set_received_at(getCurrentTime());
+  response->set_received_at(get_current_time());
 
   if (!owner_ || !owner_->handler_) {
     response->set_accepted(false);
@@ -95,7 +95,7 @@ grpc::Status gRPCServer::ExecutionServiceImpl::ReplaceOrder(
     grpc::ServerContext *context, const v1::ReplaceSignal *request,
     v1::ReplaceOrderResponse *response) {
 
-  response->set_received_at(getCurrentTime());
+  response->set_received_at(get_current_time());
 
   if (!owner_ || !owner_->handler_) {
     response->set_accepted(false);

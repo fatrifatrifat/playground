@@ -10,14 +10,15 @@ class AlpacaGateway : public IExecutionGateway {
 public:
   AlpacaGateway();
 
-  void submitOrder(const v1::Order &order) override;
-  void cancelOrder(const OrderId &orderId) override;
-  void replaceOrder(const OrderId &orderId,
-                    const v1::Order &new_order) override;
+  Result<OrderId> submitOrder(const v1::Order &order) override;
+  Result<std::monostate> cancelOrder(const OrderId &orderId) override;
+  Result<OrderId> replaceOrder(const OrderId &orderId,
+                               const v1::Order &new_order) override;
 
 private:
   alpaca::Environment env_;
   alpaca::TradingClient trade_;
+  OrderIdGenerator g;
 };
 
 } // namespace quarcc
