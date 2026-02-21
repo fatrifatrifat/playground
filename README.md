@@ -32,6 +32,6 @@ cd playground/
 Client Terminal:
 
 ```bash
-cd python_client/
+cd playground/python_client/
 python3 client.py
 ```
