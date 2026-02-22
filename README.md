@@ -1,5 +1,9 @@
 ## Install
 
+**Prerequisites**
+- C++ 23
+- CMake ≥ 3.23
+
 **Installing dependencies**
 
 Arch:
