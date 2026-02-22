@@ -11,10 +11,10 @@ class IExecutionGateway {
 public:
   virtual ~IExecutionGateway() = default;
 
-  virtual Result<OrderId> submitOrder(const v1::Order &order) = 0;
-  virtual Result<std::monostate> cancelOrder(const OrderId &orderId) = 0;
-  virtual Result<OrderId> replaceOrder(const OrderId &orderId,
-                            const v1::Order &new_order) = 0;
+  virtual Result<BrokerOrderId> submitOrder(const v1::Order &order) = 0;
+  virtual Result<std::monostate> cancelOrder(const BrokerOrderId &orderId) = 0;
+  virtual Result<BrokerOrderId> replaceOrder(const BrokerOrderId &orderId,
+                                             const v1::Order &new_order) = 0;
 };
 
 } // namespace quarcc

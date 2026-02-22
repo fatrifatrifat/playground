@@ -12,9 +12,9 @@ namespace quarcc {
 struct IExecutionServiceHandler {
   virtual ~IExecutionServiceHandler() = default;
 
-  virtual Result<OrderId> SubmitSignal(const v1::StrategySignal &req) = 0;
+  virtual Result<BrokerOrderId> SubmitSignal(const v1::StrategySignal &req) = 0;
   virtual Result<std::monostate> CancelOrder(const v1::CancelSignal &req) = 0;
-  virtual Result<OrderId> ReplaceOrder(const v1::ReplaceSignal &req) = 0;
+  virtual Result<BrokerOrderId> ReplaceOrder(const v1::ReplaceSignal &req) = 0;
   virtual Result<v1::Position>
   GetPosition(const v1::GetPositionRequest &req) = 0;
   virtual Result<v1::PositionList> GetAllPositions(const v1::Empty &req) = 0;

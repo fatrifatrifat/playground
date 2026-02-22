@@ -1,4 +1,6 @@
 #include <trading/core/trading_engine.h>
+#include <trading/persistence/sqlite_journal.h>
+#include <trading/persistence/sqlite_order_store.h>
 
 #include <thread>
 
@@ -12,7 +14,9 @@ void TradingEngine::Run() {
       StrategyId{"SMA_CROSS_v1.0"},
       OrderManager::CreateOrderManager(
           std::make_unique<PositionKeeper>(), std::make_unique<AlpacaGateway>(),
-          std::make_unique<LogJournal>(), std::make_unique<RiskManager>()));
+          std::make_unique<SQLiteJournal>("trading_journal.db"),
+          std::make_unique<SQLiteOrderStore>("trading_journal.db"),
+          std::make_unique<RiskManager>()));
 
   // Setting up the server
   server_ = std::make_unique<gRPCServer>("0.0.0.0:50051", *this);
@@ -27,7 +31,8 @@ void TradingEngine::Run() {
   google::protobuf::ShutdownProtobufLibrary();
 }
 
-Result<OrderId> TradingEngine::SubmitSignal(const v1::StrategySignal &signal) {
+Result<BrokerOrderId>
+TradingEngine::SubmitSignal(const v1::StrategySignal &signal) {
   auto it = managers_.find(signal.strategy_id());
   if (it == managers_.end())
     return std::unexpected(Error{"Unknown strategy", ErrorType::Error});
@@ -42,7 +47,8 @@ TradingEngine::CancelOrder(const v1::CancelSignal &signal) {
   return it->second->processSignal(signal);
 }
 
-Result<OrderId> TradingEngine::ReplaceOrder(const v1::ReplaceSignal &signal) {
+Result<BrokerOrderId>
+TradingEngine::ReplaceOrder(const v1::ReplaceSignal &signal) {
   auto it = managers_.find(signal.strategy_id());
   if (it == managers_.end())
     return std::unexpected(Error{"Unknown strategy", ErrorType::Error});

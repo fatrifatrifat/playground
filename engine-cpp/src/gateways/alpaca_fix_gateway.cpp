@@ -4,21 +4,24 @@ namespace quarcc {
 
 AlpacaGateway::AlpacaGateway() : trade_(env_) {}
 
-Result<OrderId> AlpacaGateway::submitOrder(const v1::Order &order) {
+Result<BrokerOrderId> AlpacaGateway::submitOrder(const v1::Order &order) {
   std::cout << "Submit Order. Quantity: " << order.id() << ", quantity"
             << order.quantity() << '\n';
+  // Return ID from broker
   return g.generate();
 }
 
-Result<std::monostate> AlpacaGateway::cancelOrder(const OrderId &orderId) {
+Result<std::monostate>
+AlpacaGateway::cancelOrder(const BrokerOrderId &orderId) {
   std::cout << "Cancel Order, ID: " << orderId << '\n';
   return std::monostate{};
 }
 
-Result<OrderId> AlpacaGateway::replaceOrder(const OrderId &orderId,
-                                            const v1::Order &new_order) {
+Result<BrokerOrderId> AlpacaGateway::replaceOrder(const BrokerOrderId &orderId,
+                                                  const v1::Order &new_order) {
   std::cout << "Replace Order, ID: " << orderId << " replaced by "
             << new_order.id() << ", quantity: " << new_order.quantity() << '\n';
+  // Return ID from broker
   return g.generate();
 }
 

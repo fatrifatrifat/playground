@@ -17,9 +17,9 @@ public:
   void Run();
 
 private:
-  Result<OrderId> SubmitSignal(const v1::StrategySignal &req) override;
+  Result<BrokerOrderId> SubmitSignal(const v1::StrategySignal &req) override;
   Result<std::monostate> CancelOrder(const v1::CancelSignal &req) override;
-  Result<OrderId> ReplaceOrder(const v1::ReplaceSignal &req) override;
+  Result<BrokerOrderId> ReplaceOrder(const v1::ReplaceSignal &req) override;
   Result<v1::Position> GetPosition(const v1::GetPositionRequest &req) override;
   Result<v1::PositionList> GetAllPositions(const v1::Empty &req) override;
   Result<std::monostate>
