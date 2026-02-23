@@ -4,6 +4,7 @@
 #include <trading/utils/result.h>
 
 #include "order.pb.h"
+#include "execution.pb.h"
 
 namespace quarcc {
 
@@ -11,10 +12,11 @@ class IExecutionGateway {
 public:
   virtual ~IExecutionGateway() = default;
 
-  virtual Result<BrokerOrderId> submitOrder(const v1::Order &order) = 0;
-  virtual Result<std::monostate> cancelOrder(const BrokerOrderId &orderId) = 0;
-  virtual Result<BrokerOrderId> replaceOrder(const BrokerOrderId &orderId,
+  virtual Result<BrokerOrderId> submit_order(const v1::Order &order) = 0;
+  virtual Result<std::monostate> cancel_order(const BrokerOrderId &orderId) = 0;
+  virtual Result<BrokerOrderId> replace_order(const BrokerOrderId &orderId,
                                              const v1::Order &new_order) = 0;
+  virtual std::vector<v1::ExecutionReport> get_fills() = 0;
 };
 
 } // namespace quarcc

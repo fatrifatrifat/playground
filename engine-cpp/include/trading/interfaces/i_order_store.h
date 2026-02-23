@@ -14,8 +14,9 @@ enum class OrderStatus : std::uint8_t {
   PARTIALLY_FILLED = 3,
   FILLED = 4,
   CANCELLED = 5,
-  REJECTED = 6,
-  EXPIRED = 7
+  REPLACED = 6,
+  REJECTED = 7,
+  EXPIRED = 8
 };
 
 inline const char *order_status_to_string(OrderStatus status) {
@@ -32,6 +33,8 @@ inline const char *order_status_to_string(OrderStatus status) {
     return "FILLED";
   case OrderStatus::CANCELLED:
     return "CANCELLED";
+  case OrderStatus::REPLACED:
+    return "REPLACED";
   case OrderStatus::REJECTED:
     return "REJECTED";
   case OrderStatus::EXPIRED:

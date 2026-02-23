@@ -215,62 +215,37 @@ if __name__ == "__main__":
     client = ExecutionClient("localhost:50051")
 
     # Submit a buy signal
-    print("\n--- Submitting BUY signal ---")
-    order_id = client.submit_signal(
-        strategy_id="SMA_CROSS_v1.0",
-        symbol="AAPL",
-        side="BUY",
-        quantity=100,
-        confidence=0.85,
-    )
-
-    if order_id:
-        print(f"Order submitted: {order_id}")
-
-        # Wait a bit
-        import time
-
-        time.sleep(1)
-
-        # # Check position
-        # print("\n--- Checking position ---")
-        # position = client.get_position("AAPL")
-        # print(f"Position: {position}")
-
-        print("\n--- Submitting CANCEL signal ---")
-        client.cancel_signal(
+    for i in range(5):
+        print("\n--- Submitting BUY signal ---")
+        order_id = client.submit_signal(
             strategy_id="SMA_CROSS_v1.0",
-            order_id="order",
-        )
-
-        print("\n--- Submitting REPLACE signal ---")
-        order_id = client.replace_order(
-            strategy_id="SMA_CROSS_v1.0",
-            order_id="order",
-            symbol="AAPL",
+            symbol="ACDC",
             side="BUY",
-            quantity=100,
+            quantity=1.5,
             confidence=0.85,
         )
 
         if order_id:
             print(f"Order submitted: {order_id}")
 
-            # # Wait a bit
-            import time
+            print("\n--- Submitting CANCEL signal ---")
+            client.cancel_signal(
+                strategy_id="SMA_CROSS_v1.0",
+                order_id=order_id,
+            )
 
-            time.sleep(1)
+        # if order_id:
+        #     print(f"Order submitted: {order_id}")
 
-            # # Check position
-            # print("\n--- Checking position ---")
-            # position = client.get_position("AAPL")
-            # print(f"Position: {position}")
-
-    # # Get all positions
-    # print("\n--- All positions ---")
-    # positions = client.get_all_positions()
-    # for pos in positions:
-    #     print(f"{pos['symbol']}: {pos['quantity']} shares @ ${pos['avg_price']:.2f}")
+        #     print("\n--- Submitting REPLACE signal ---")
+        #     order_id = client.replace_order(
+        #         strategy_id="SMA_CROSS_v1.0",
+        #         order_id=order_id,
+        #         symbol="ACDC",
+        #         side="BUY",
+        #         quantity=1,
+        #         confidence=0.85,
+        #     )
 
     # Close
     client.close()

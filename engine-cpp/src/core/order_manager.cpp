@@ -11,7 +11,7 @@ std::unique_ptr<OrderManager> OrderManager::CreateOrderManager(
                        std::move(os), std::move(rm)));
 }
 
-Result<BrokerOrderId>
+Result<LocalOrderId>
 OrderManager::processSignal(const v1::StrategySignal &signal) {
   // Create order
   std::string local_id = id_generator_->generate();
@@ -34,7 +34,7 @@ OrderManager::processSignal(const v1::StrategySignal &signal) {
   // TODO: Risk check
 
   // Submit to gateway
-  auto result = gateway_->submitOrder(order);
+  auto result = gateway_->submit_order(order);
   if (!result) {
     journal_->log(Event::ORDER_REJECTED, result.error().message_, local_id);
     if (auto result =
@@ -62,6 +62,7 @@ OrderManager::processSignal(const v1::StrategySignal &signal) {
           order_store_->update_order_status(local_id, OrderStatus::SUBMITTED);
       !result) {
     journal_->log(Event::ERROR_OCCURRED, result.error().message_, local_id);
+    id_mapper_->remove_mapping(local_id);
     return std::unexpected(result.error());
   }
 
@@ -78,10 +79,12 @@ OrderManager::processSignal(const v1::CancelSignal &signal) {
                                  ErrorType::Error});
   }
 
-  auto result = gateway_->cancelOrder(*broker_id);
+  auto result = gateway_->cancel_order(*broker_id);
 
   if (result) {
     journal_->log(Event::ORDER_CANCELLED, "Cancelled", local_id);
+    // id_mapper_->remove_mapping(local_id); TODO: Removal after a grace period
+    // (to wait for the execution to complete)
     if (auto result =
             order_store_->update_order_status(local_id, OrderStatus::CANCELLED);
         !result) {
@@ -93,14 +96,61 @@ OrderManager::processSignal(const v1::CancelSignal &signal) {
   return result;
 }
 
-Result<BrokerOrderId>
+Result<LocalOrderId>
 OrderManager::processSignal(const v1::ReplaceSignal &signal) {
-  v1::Order order = createOrderFromSignal(signal);
-  auto result = gateway_->replaceOrder(signal.order_id(), order);
-  if (!result) {
-    return result;
+  std::string old_local_id = signal.order_id();
+
+  auto old_broker_id = id_mapper_->get_broker_id(old_local_id);
+  if (!old_broker_id) {
+    return std::unexpected(Error{
+        "Cannot find broker ID for order: " + old_local_id, ErrorType::Error});
   }
-  return result;
+
+  std::string new_local_id = id_generator_->generate();
+
+  v1::Order new_order = createOrderFromSignal(signal);
+  new_order.set_id(new_local_id);
+
+  journal_->log(Event::ORDER_REPLACED,
+                "Replacing " + old_local_id + " with " + new_local_id,
+                new_local_id);
+
+  auto result = gateway_->replace_order(*old_broker_id, new_order);
+  if (!result) {
+    journal_->log(Event::ORDER_REJECTED, result.error().message_, new_local_id);
+    return std::unexpected(result.error());
+  }
+
+  std::string new_broker_id = result.value();
+
+  if (auto result = order_store_->update_order_status(old_local_id,
+                                                      OrderStatus::REPLACED);
+      !result) {
+    journal_->log(Event::ERROR_OCCURRED, result.error().message_, old_local_id);
+    return std::unexpected(result.error());
+  }
+
+  StoredOrder stored;
+  stored.order = new_order;
+  stored.local_id = new_local_id;
+  stored.broker_id = new_broker_id;
+  stored.status = OrderStatus::SUBMITTED;
+  stored.created_at = LogEntry::timestamp_to_string(LogEntry::now());
+
+  if (auto store_result = order_store_->store_order(stored); !store_result) {
+    journal_->log(Event::ERROR_OCCURRED, store_result.error().message_,
+                  new_local_id);
+    return std::unexpected(store_result.error());
+  }
+
+  id_mapper_->remove_mapping(old_local_id);
+  id_mapper_->add_mapping(new_local_id, new_broker_id);
+
+  std::string log_data = "Old: " + old_local_id + " -> New: " + new_local_id +
+                         " (Broker: " + new_broker_id + ")";
+  journal_->log(Event::ORDER_SUBMITTED, log_data, new_local_id);
+
+  return new_local_id;
 }
 
 OrderManager::OrderManager(std::unique_ptr<PositionKeeper> pk,

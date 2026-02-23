@@ -21,9 +21,9 @@ public:
       std::unique_ptr<IJournal> lj, std::unique_ptr<IOrderStore> os,
       std::unique_ptr<RiskManager> rm);
 
-  Result<BrokerOrderId> processSignal(const v1::StrategySignal &signal);
+  Result<LocalOrderId> processSignal(const v1::StrategySignal &signal);
   Result<std::monostate> processSignal(const v1::CancelSignal &signal);
-  Result<BrokerOrderId> processSignal(const v1::ReplaceSignal &signal);
+  Result<LocalOrderId> processSignal(const v1::ReplaceSignal &signal);
 
 private:
   OrderManager(std::unique_ptr<PositionKeeper> pk,
