@@ -19,8 +19,7 @@ cmake --build build -j
 
 Build Client:
 ```bash
-python -m pip install --upgrade pip
-python -m pip install grpcio grpcio-tools protobuf
+pip install -r requirements.txt
 bash ./scripts/generate_protos_python.py
 ```
 
