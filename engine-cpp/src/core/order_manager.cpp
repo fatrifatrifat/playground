@@ -153,6 +153,135 @@ OrderManager::processSignal(const v1::ReplaceSignal &signal) {
   return new_local_id;
 }
 
+// ---------------------------------------------------------------------------
+// process_fills
+// ---------------------------------------------------------------------------
+// Called periodically by TradingEngine::Run(). Asks the gateway for any fills
+// that arrived since the last poll, then for each ExecutionReport:
+//   1. Resolves the local order ID via the bidirectional ID mapper.
+//   2. Fetches the stored order to compare filled vs original quantity.
+//   3. Updates fill info (quantity, avg price) in the order store.
+//   4. Sets the order status to FILLED or PARTIALLY_FILLED.
+//   5. Calls position_keeper_->on_fill() so positions stay up to date.
+//   6. Journals the event.
+//   7. Removes fully-filled orders from the ID mapper (they're terminal).
+void OrderManager::process_fills() {
+  auto fills = gateway_->get_fills();
+
+  for (const auto &fill : fills) {
+    const std::string &broker_id = fill.broker_order_id();
+
+    // 1. Resolve broker → local ID
+    auto local_id_opt = id_mapper_->get_local_id(broker_id);
+    if (!local_id_opt) {
+      journal_->log(Event::ERROR_OCCURRED,
+                    "Received fill for unknown broker order: " + broker_id);
+      continue;
+    }
+    const std::string &local_id = *local_id_opt;
+
+    // 2. Fetch the stored order to determine full vs partial fill
+    auto stored = order_store_->get_order(local_id);
+    if (!stored) {
+      journal_->log(Event::ERROR_OCCURRED,
+                    "Cannot find stored order for local_id: " + local_id,
+                    local_id);
+      continue;
+    }
+
+    const double filled_qty = fill.filled_quantity();
+    const double original_qty = stored->order.quantity();
+
+    // 3. Persist fill details
+    if (auto r = order_store_->update_fill_info(local_id, filled_qty,
+                                                fill.avg_fill_price());
+        !r) {
+      journal_->log(Event::ERROR_OCCURRED, r.error().message_, local_id);
+    }
+
+    // 4. Determine and persist the new order status
+    const bool fully_filled = (filled_qty >= original_qty);
+    const OrderStatus new_status =
+        fully_filled ? OrderStatus::FILLED : OrderStatus::PARTIALLY_FILLED;
+
+    if (auto r = order_store_->update_order_status(local_id, new_status); !r) {
+      journal_->log(Event::ERROR_OCCURRED, r.error().message_, local_id);
+    }
+
+    // 5. Update in-memory position
+    position_keeper_->on_fill(fill.symbol(), filled_qty, fill.avg_fill_price(),
+                              fill.side());
+
+    // 6. Journal the event
+    const std::string log_data =
+        "Filled: " + std::to_string(filled_qty) + " / " +
+        std::to_string(original_qty) +
+        " @ avg=" + std::to_string(fill.avg_fill_price());
+
+    journal_->log(fully_filled ? Event::ORDER_FILLED
+                               : Event::ORDER_PARTIALLY_FILLED,
+                  log_data, local_id);
+
+    // 7. Remove fully-filled orders from the mapper — they are terminal
+    if (fully_filled)
+      id_mapper_->remove_mapping(local_id);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// cancel_all
+// ---------------------------------------------------------------------------
+// Iterates every open order from the order store, attempts a gateway
+// cancellation for each one that has a broker ID, and updates the store and
+// journal regardless of whether the gateway call succeeds (best-effort during
+// an emergency shutdown).
+void OrderManager::cancel_all(const std::string &reason,
+                              const std::string &initiated_by) {
+  const std::string ks_data =
+      "Kill switch activated by: " + initiated_by + ". Reason: " + reason;
+  journal_->log(Event::KILL_SWITCH_ACTIVATED, ks_data);
+
+  const auto open_orders = order_store_->get_open_orders();
+  for (const auto &stored : open_orders) {
+    if (!stored.broker_id)
+      continue;
+
+    if (auto r = gateway_->cancel_order(*stored.broker_id); r) {
+      if (auto r = order_store_->update_order_status(stored.local_id,
+                                                     OrderStatus::CANCELLED);
+          !r) {
+        journal_->log(Event::ERROR_OCCURRED, r.error().message_,
+                      stored.local_id);
+        return;
+      }
+
+      id_mapper_->remove_mapping(stored.local_id);
+      journal_->log(Event::ORDER_CANCELLED, "Cancelled by kill switch",
+                    stored.local_id);
+    } else {
+      journal_->log(Event::ERROR_OCCURRED,
+                    "Failed to cancel during kill switch: " +
+                        r.error().message_,
+                    stored.local_id);
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// get_position / get_all_positions
+// ---------------------------------------------------------------------------
+Result<v1::Position>
+OrderManager::get_position(const std::string &symbol) const {
+  return position_keeper_->getPosition(symbol);
+}
+
+v1::PositionList OrderManager::get_all_positions() const {
+  return position_keeper_->getAllPositions();
+}
+
+// ---------------------------------------------------------------------------
+// OrderManager::OrderManager (private constructor, keep at bottom)
+// ---------------------------------------------------------------------------
 OrderManager::OrderManager(std::unique_ptr<PositionKeeper> pk,
                            std::unique_ptr<IExecutionGateway> gw,
                            std::unique_ptr<IJournal> lj,

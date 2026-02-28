@@ -17,12 +17,17 @@ public:
   void Run();
 
 private:
-  Result<BrokerOrderId> SubmitSignal(const v1::StrategySignal &req) override;
-  Result<std::monostate> CancelOrder(const v1::CancelSignal &req) override;
-  Result<BrokerOrderId> ReplaceOrder(const v1::ReplaceSignal &req) override;
-  Result<v1::Position> GetPosition(const v1::GetPositionRequest &req) override;
-  Result<v1::PositionList> GetAllPositions(const v1::Empty &req) override;
-  Result<std::monostate>
+  [[no_discard]] Result<BrokerOrderId>
+  SubmitSignal(const v1::StrategySignal &req) override;
+  [[no_discard]] Result<std::monostate>
+  CancelOrder(const v1::CancelSignal &req) override;
+  [[no_discard]] Result<BrokerOrderId>
+  ReplaceOrder(const v1::ReplaceSignal &req) override;
+  [[no_discard]] Result<v1::Position>
+  GetPosition(const v1::GetPositionRequest &req) override;
+  [[no_discard]] Result<v1::PositionList>
+  GetAllPositions(const v1::Empty &req) override;
+  [[no_discard]] Result<std::monostate>
   ActivateKillSwitch(const v1::KillSwitchRequest &req) override;
 
 private:

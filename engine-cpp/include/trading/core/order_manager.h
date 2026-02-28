@@ -25,6 +25,18 @@ public:
   Result<std::monostate> processSignal(const v1::CancelSignal &signal);
   Result<LocalOrderId> processSignal(const v1::ReplaceSignal &signal);
 
+  // Poll the gateway for new fills and apply them to the order store and
+  // position keeper. Called periodically from TradingEngine::Run().
+  void process_fills();
+
+  // Cancel every open order through the gateway and journal the kill-switch
+  // event. Called from TradingEngine::ActivateKillSwitch().
+  void cancel_all(const std::string &reason, const std::string &initiated_by);
+
+  // Position queries delegated to the internal PositionKeeper.
+  Result<v1::Position> get_position(const std::string &symbol) const;
+  v1::PositionList get_all_positions() const;
+
 private:
   OrderManager(std::unique_ptr<PositionKeeper> pk,
                std::unique_ptr<IExecutionGateway> gw,

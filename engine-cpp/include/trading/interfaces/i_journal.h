@@ -27,7 +27,10 @@ enum class Event : std::uint8_t {
 
   SIGNAL_RECEIVED = 14,
   SIGNAL_PROCESSED = 15,
-  SIGNAL_IGNORED = 16
+  SIGNAL_IGNORED = 16,
+
+  ORDER_FILLED = 17,
+  ORDER_PARTIALLY_FILLED = 18
 };
 
 inline const char *event_to_string(Event event) {
@@ -66,6 +69,10 @@ inline const char *event_to_string(Event event) {
     return "SIGNAL_PROCESSED";
   case Event::SIGNAL_IGNORED:
     return "SIGNAL_IGNORED";
+  case Event::ORDER_FILLED:
+    return "ORDER_FILLED";
+  case Event::ORDER_PARTIALLY_FILLED:
+    return "ORDER_PARTIALLY_FILLED";
   default:
     return "UNKNOWN";
   }

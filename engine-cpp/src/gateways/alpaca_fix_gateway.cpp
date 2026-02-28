@@ -59,27 +59,39 @@ Result<BrokerOrderId> AlpacaGateway::replace_order(const BrokerOrderId &orderId,
 
 std::vector<v1::ExecutionReport> AlpacaGateway::get_fills() {
   std::vector<v1::ExecutionReport> fills;
+  // Collect IDs to remove *after* the loop — erasing inside a range-for loop
+  // over an unordered_map invalidates the iterator and is undefined behaviour.
+  std::vector<std::string> to_erase;
 
   std::lock_guard lk{orders_mutex_};
 
   for (const auto &[broker_id, _] : pending_orders_) {
     auto resp = trade_.GetOrderByID(broker_id);
-    if (!resp) {
+    if (!resp)
       continue;
-    }
 
     const auto &order = resp.value();
+    const double filled_qty = stod(order.filledQty);
+
+    // Skip orders that haven't been filled at all yet.
+    if (filled_qty <= 0.0)
+      continue;
+
     v1::ExecutionReport fill;
     fill.set_broker_order_id(broker_id);
     fill.set_symbol(order.symbol.value());
     fill.set_side((order.side == alpaca::OrderSide::buy) ? v1::Side::BUY
                                                          : v1::Side::SELL);
-    fill.set_filled_quantity(stod(order.filledQty));
+    fill.set_filled_quantity(filled_qty);
     fill.set_fill_time(get_current_time());
     fills.push_back(std::move(fill));
 
-    pending_orders_.erase(broker_id);
+    to_erase.push_back(broker_id);
   }
+
+  // Safe to erase now that we're done iterating.
+  for (const auto &id : to_erase)
+    pending_orders_.erase(id);
 
   return fills;
 }
@@ -102,6 +114,8 @@ AlpacaGateway::order_enum_conversion(v1::Side type) const {
     return alpaca::OrderSide::buy;
   case v1::Side::SELL:
     return alpaca::OrderSide::sell;
+  default:
+    throw std::invalid_argument("Unknown v1::Side");
   }
 }
 
@@ -116,6 +130,8 @@ AlpacaGateway::order_enum_conversion(v1::OrderType type) const {
     return alpaca::OrderType::stop_limit;
   case v1::OrderType::STOP:
     return alpaca::OrderType::stop;
+  default:
+    throw std::invalid_argument("Unknown v1::OrderType");
   }
 }
 
@@ -130,6 +146,8 @@ AlpacaGateway::order_enum_conversion(v1::TimeInForce type) const {
     return alpaca::OrderTimeInForce::gtc;
   case v1::TimeInForce::IOC:
     return alpaca::OrderTimeInForce::ioc;
+  default:
+    throw std::invalid_argument("Unknown v1::TimeInForce");
   }
 }
 

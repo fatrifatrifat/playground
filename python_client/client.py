@@ -74,7 +74,7 @@ class ExecutionClient:
         self,
         strategy_id: str,
         order_id: str,
-    ) -> optional[str]:
+    ) -> Optional[str]:
         """
         Submit a cancel signal.
 
@@ -115,7 +115,7 @@ class ExecutionClient:
         side: str,  # "BUY" or "SELL"
         quantity: float,
         confidence: float = 1.0,
-    ) -> optional[str]:
+    ) -> Optional[str]:
         """
         Submit a replace signal.
 
@@ -225,17 +225,12 @@ if __name__ == "__main__":
             confidence=0.85,
         )
 
-        if order_id:
-            print(f"Order submitted: {order_id}")
-
-            print("\n--- Submitting CANCEL signal ---")
-            client.cancel_signal(
-                strategy_id="SMA_CROSS_v1.0",
-                order_id=order_id,
-            )
-
         # if order_id:
         #     print(f"Order submitted: {order_id}")
+
+        #     import time
+
+        #     time.sleep(2)
 
         #     print("\n--- Submitting REPLACE signal ---")
         #     order_id = client.replace_order(
@@ -246,6 +241,24 @@ if __name__ == "__main__":
         #         quantity=1,
         #         confidence=0.85,
         #     )
+
+
+        #     if order_id:
+        #         print(f"Order replaced: {order_id}")
+
+        #         print("\n--- Submitting CANCEL signal ---")
+        #         client.cancel_signal(
+        #             strategy_id="SMA_CROSS_v1.0",
+        #             order_id=order_id,
+        #         )
+
+
+        # Get all positions
+        print("\n--- All positions ---")
+        positions = client.get_all_positions()
+        print(positions)
+        # for pos in positions:
+        #     print(f"{pos['symbol']}: {pos['quantity']} shares @ ${pos['avg_price']:.2f}")
 
     # Close
     client.close()
