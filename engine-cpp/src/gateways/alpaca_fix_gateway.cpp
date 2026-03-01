@@ -11,7 +11,7 @@ Result<BrokerOrderId> AlpacaGateway::submit_order(const v1::Order &order) {
     return std::unexpected(Error{resp.error().message, ErrorType::Error});
   }
 
-  const std::string &broker_id = resp->id;
+  const BrokerOrderId &broker_id = resp->id;
 
   {
     std::lock_guard lk{orders_mutex_};
@@ -47,7 +47,7 @@ Result<BrokerOrderId> AlpacaGateway::replace_order(const BrokerOrderId &orderId,
     return std::unexpected(Error{resp.error().message, ErrorType::Error});
   }
 
-  const std::string &broker_id = resp->id;
+  const BrokerOrderId &broker_id = resp->id;
   {
     std::lock_guard lk{orders_mutex_};
     pending_orders_.erase(orderId);
@@ -61,7 +61,7 @@ std::vector<v1::ExecutionReport> AlpacaGateway::get_fills() {
   std::vector<v1::ExecutionReport> fills;
   // Collect IDs to remove *after* the loop — erasing inside a range-for loop
   // over an unordered_map invalidates the iterator and is undefined behaviour.
-  std::vector<std::string> to_erase;
+  std::vector<BrokerOrderId> to_erase;
 
   std::lock_guard lk{orders_mutex_};
 

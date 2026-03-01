@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.24)
 
 set(GATEWAY_SOURCES
     alpaca_fix_gateway.cpp
+    paper_trading_gateway.cpp
 )
 
 set(_HAS_FIX 0)

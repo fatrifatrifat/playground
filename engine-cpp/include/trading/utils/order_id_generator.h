@@ -12,17 +12,20 @@ namespace quarcc {
 // already gives us ids for them when created
 class OrderIdGenerator {
 public:
+  OrderIdGenerator(const std::string &ord = "ORD") : id_specifier_(ord) {}
+
   LocalOrderId generate() {
     auto now = std::chrono::system_clock::now();
     auto timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(
                          now.time_since_epoch())
                          .count();
 
-    return std::format("ORD_{}_{:06d}", timestamp, counter_++);
+    return std::format("{}_{}_{:06d}", id_specifier_, timestamp, counter_++);
   }
 
 private:
   std::atomic<std::uint64_t> counter_{0};
+  const std::string id_specifier_;
 };
 
 inline std::string get_current_time() noexcept {
