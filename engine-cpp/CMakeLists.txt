@@ -57,3 +57,7 @@ set(TRADING_WITH_WEBSOCKET 0)
 set(TRADING_WITH_PROMETHEUS 0)
 
 add_subdirectory(src)
+
+if(TRADING_BUILD_TESTS)
+    add_subdirectory(tests)
+endif()

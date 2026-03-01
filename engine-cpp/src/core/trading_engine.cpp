@@ -1,6 +1,7 @@
 #include <trading/core/trading_engine.h>
 #include <trading/persistence/sqlite_journal.h>
 #include <trading/persistence/sqlite_order_store.h>
+#include <trading/gateways/paper_trading_gateway.h>
 
 #include <chrono>
 #include <thread>
@@ -16,7 +17,7 @@ void TradingEngine::Run() {
   managers_.emplace(
       StrategyId{"SMA_CROSS_v1.0"},
       OrderManager::CreateOrderManager(
-          std::make_unique<PositionKeeper>(), std::make_unique<AlpacaGateway>(),
+          std::make_unique<PositionKeeper>(), std::make_unique<PaperGateway>(),
           std::make_unique<SQLiteJournal>("SMA_CROSS_v1_trading_journal.db"),
           std::make_unique<SQLiteOrderStore>("SMA_CROSS_v1_trading_orders.db"),
           std::make_unique<RiskManager>()));

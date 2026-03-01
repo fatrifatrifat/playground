@@ -146,16 +146,13 @@ OrderManager::processSignal(const v1::ReplaceSignal &signal) {
   id_mapper_->remove_mapping(old_local_id);
   id_mapper_->add_mapping(new_local_id, new_broker_id);
 
-  std::string log_data = "Old: " + old_local_id + " -> New: " + new_local_id +
-                         " (Broker: " + new_broker_id + ")";
+  std::string log_data = std::format("Old: {} -> New: {} (Broker: {})", old_local_id, new_local_id, new_broker_id);
+
   journal_->log(Event::ORDER_SUBMITTED, log_data, new_local_id);
 
   return new_local_id;
 }
 
-// ---------------------------------------------------------------------------
-// process_fills
-// ---------------------------------------------------------------------------
 // Called periodically by TradingEngine::Run(). Asks the gateway for any fills
 // that arrived since the last poll, then for each ExecutionReport:
 //   1. Resolves the local order ID via the bidirectional ID mapper.
@@ -213,10 +210,7 @@ void OrderManager::process_fills() {
                               fill.side());
 
     // 6. Journal the event
-    const std::string log_data =
-        "Filled: " + std::to_string(filled_qty) + " / " +
-        std::to_string(original_qty) +
-        " @ avg=" + std::to_string(fill.avg_fill_price());
+    const std::string log_data = std::format("Filled: {} / {} @ avg=", filled_qty, original_qty, fill.avg_fill_price());
 
     journal_->log(fully_filled ? Event::ORDER_FILLED
                                : Event::ORDER_PARTIALLY_FILLED,
@@ -228,9 +222,6 @@ void OrderManager::process_fills() {
   }
 }
 
-// ---------------------------------------------------------------------------
-// cancel_all
-// ---------------------------------------------------------------------------
 // Iterates every open order from the order store, attempts a gateway
 // cancellation for each one that has a broker ID, and updates the store and
 // journal regardless of whether the gateway call succeeds (best-effort during
@@ -267,9 +258,6 @@ void OrderManager::cancel_all(const std::string &reason,
   }
 }
 
-// ---------------------------------------------------------------------------
-// get_position / get_all_positions
-// ---------------------------------------------------------------------------
 Result<v1::Position>
 OrderManager::get_position(const std::string &symbol) const {
   return position_keeper_->getPosition(symbol);
@@ -279,9 +267,6 @@ v1::PositionList OrderManager::get_all_positions() const {
   return position_keeper_->getAllPositions();
 }
 
-// ---------------------------------------------------------------------------
-// OrderManager::OrderManager (private constructor, keep at bottom)
-// ---------------------------------------------------------------------------
 OrderManager::OrderManager(std::unique_ptr<PositionKeeper> pk,
                            std::unique_ptr<IExecutionGateway> gw,
                            std::unique_ptr<IJournal> lj,

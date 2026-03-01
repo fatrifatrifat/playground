@@ -252,13 +252,16 @@ if __name__ == "__main__":
         #             order_id=order_id,
         #         )
 
+    import time
 
-        # Get all positions
-        print("\n--- All positions ---")
-        positions = client.get_all_positions()
-        print(positions)
-        # for pos in positions:
-        #     print(f"{pos['symbol']}: {pos['quantity']} shares @ ${pos['avg_price']:.2f}")
+    time.sleep(2)
+
+    # Get all positions
+    print("\n--- All positions ---")
+    positions = client.get_all_positions()
+    print(positions)
+    for pos in positions:
+        print(f"{pos['symbol']}: {pos['quantity']} shares @ ${pos['avg_price']:.2f}")
 
     # Close
     client.close()
