@@ -1,3 +1,4 @@
+#include <iostream>
 #include <trading/core/order_manager.h>
 #include <trading/utils/event_queue.h>
 
@@ -43,9 +44,13 @@ void OrderManager::enqueue(OMEvent event) {
   // Can drop market data if there's too much to process, it's okay to drop them
   // This doesn't apply to v1::ExecutionReport and RetryFillsEvent because they
   // CANNOT be dropped
+  static size_t drop_count = 0;
   if (std::holds_alternative<Bar>(event) ||
       std::holds_alternative<Tick>(event)) {
-    queue_.try_push(std::move(event), MAX_MARKETDATA_QUEUE_DEPTH);
+    if (queue_.try_push(std::move(event), MAX_MARKETDATA_QUEUE_DEPTH)) {
+      std::cout << "[OrderManagerl] - Market Data dropped. Total: "
+                << ++drop_count << '\n';
+    }
     return;
   }
   queue_.push(std::move(event));
