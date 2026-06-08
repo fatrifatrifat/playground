@@ -20,9 +20,9 @@ public:
   Result<std::monostate>
   update_broker_id(const std::string &local_id,
                    const std::string &broker_id) override;
-  Result<std::monostate> update_fill_info(const std::string &local_id,
-                                          double filled_quantity,
-                                          double avg_price) override;
+  Result<std::monostate> apply_fill(const std::string &local_id,
+                                    double filled_quantity, double avg_price,
+                                    OrderStatus new_status) override;
   Result<StoredOrder> get_order(const std::string &local_id) override;
   std::vector<StoredOrder> get_open_orders() override;
   std::vector<StoredOrder> get_orders_by_status(OrderStatus status) override;

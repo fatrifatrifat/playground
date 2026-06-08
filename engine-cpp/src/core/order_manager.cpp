@@ -4,6 +4,31 @@
 
 namespace quarcc {
 
+namespace {
+
+template <typename T>
+concept OrderSignal = requires(const T &s) {
+  s.symbol();
+  s.side();
+  s.target_quantity();
+  s.strategy_id();
+};
+
+template <OrderSignal T> v1::Order create_order_from_signal(const T &signal) {
+  v1::Order order;
+  order.set_symbol(signal.symbol());
+  order.set_side(signal.side());
+  order.set_quantity(signal.target_quantity());
+  order.set_type(v1::OrderType::MARKET);
+  order.set_account_id("quarcc.Rifat");
+  order.set_created_at(get_current_time());
+  order.set_time_in_force(v1::TimeInForce::DAY);
+  order.set_strategy_id(signal.strategy_id());
+  return order;
+}
+
+} // namespace
+
 std::unique_ptr<OrderManager> OrderManager::create_order_manager(
     std::string account_id, std::unique_ptr<PositionKeeper> pk,
     std::unique_ptr<IExecutionGateway> gw, std::unique_ptr<IJournal> lj,
@@ -44,13 +69,11 @@ void OrderManager::enqueue(OMEvent event) {
   // Can drop market data if there's too much to process, it's okay to drop them
   // This doesn't apply to v1::ExecutionReport and RetryFillsEvent because they
   // CANNOT be dropped
-  static size_t drop_count = 0;
   if (std::holds_alternative<Bar>(event) ||
       std::holds_alternative<Tick>(event)) {
-    if (queue_.try_push(std::move(event), MAX_MARKETDATA_QUEUE_DEPTH)) {
-      std::cout << "[OrderManagerl] - Market Data dropped. Total: "
-                << ++drop_count << '\n';
-    }
+    if (!queue_.try_push(std::move(event), MAX_MARKETDATA_QUEUE_DEPTH))
+      std::cerr << "[OrderManager] Market data dropped - queue full ("
+                << queue_.dropped_count() << " total drops)\n";
     return;
   }
   queue_.push(std::move(event));
@@ -133,20 +156,15 @@ void OrderManager::handle_fill(const v1::ExecutionReport &fill) {
   const double filled_qty = fill.filled_quantity();
   const double original_qty = stored->order.quantity();
 
-  // 3. Persist fill details
-  if (auto r = order_store_->update_fill_info(local_id, filled_qty,
-                                              fill.avg_fill_price());
-      !r) {
-    journal_->log(Event::ERROR_OCCURRED, r.error().message_, local_id);
-  }
-
-  // 4. Determine and persist the new order status
+  // 3+4. Determine status and persist fill details + status atomically
   const bool fully_filled =
       (stored->filled_quantity + filled_qty >= original_qty);
   const OrderStatus new_status =
       fully_filled ? OrderStatus::FILLED : OrderStatus::PARTIALLY_FILLED;
 
-  if (auto r = order_store_->update_order_status(local_id, new_status); !r) {
+  if (auto r = order_store_->apply_fill(local_id, filled_qty,
+                                        fill.avg_fill_price(), new_status);
+      !r) {
     journal_->log(Event::ERROR_OCCURRED, r.error().message_, local_id);
   }
 
@@ -228,6 +246,12 @@ void OrderManager::handle_retry_fills() {
 // All the processing of the signals that runs concurrently to the dispatch
 // thread. Each component of the OM should be thread safe
 
+// Steps taken when receiving strategy signal:
+//  1. Initialize & log the order in the order_store DB
+//  2. RM check
+//  3. Submit to gateway
+//  4. Update order_store DB
+//  5. Add to id mapping
 Result<LocalOrderId>
 OrderManager::process_signal(const v1::StrategySignal &signal) {
   std::string local_id = id_generator_->generate();
@@ -246,7 +270,20 @@ OrderManager::process_signal(const v1::StrategySignal &signal) {
     return std::unexpected(r.error());
   }
 
-  // TODO: Risk check
+  {
+    const auto open_count = order_store_->get_open_orders().size();
+    const double realized_pnl = position_keeper_->get_total_pnl();
+    if (auto r =
+            risk_manager_->check(order.quantity(), open_count, realized_pnl);
+        !r) {
+      journal_->log(Event::ORDER_REJECTED, r.error().message_, local_id);
+      if (auto sr = order_store_->update_order_status(local_id,
+                                                      OrderStatus::REJECTED);
+          !sr)
+        journal_->log(Event::ERROR_OCCURRED, sr.error().message_, local_id);
+      return std::unexpected(r.error());
+    }
+  }
 
   auto result = gateway_->submit_order(order);
   if (!result) {
@@ -317,9 +354,9 @@ OrderManager::process_signal(const v1::CancelSignal &signal) {
 
 Result<LocalOrderId>
 OrderManager::process_signal(const v1::ReplaceSignal &signal) {
-  std::string old_local_id = signal.order_id();
+  const std::string old_local_id = signal.order_id();
 
-  auto old_broker_id = id_mapper_->get_broker_id(old_local_id);
+  const auto old_broker_id = id_mapper_->get_broker_id(old_local_id);
   if (!old_broker_id) [[unlikely]] {
     return std::unexpected(Error{
         "Cannot find broker ID for order: " + old_local_id, ErrorType::Error});
@@ -410,34 +447,6 @@ OrderManager::get_position(const std::string &symbol) const {
 
 v1::PositionList OrderManager::get_all_positions() const {
   return position_keeper_->get_all_positions();
-}
-
-v1::Order
-OrderManager::create_order_from_signal(const v1::StrategySignal &signal) {
-  v1::Order order;
-  order.set_symbol(signal.symbol());
-  order.set_side(signal.side());
-  order.set_quantity(signal.target_quantity());
-  order.set_type(v1::OrderType::MARKET);
-  order.set_account_id("quarcc.Rifat");
-  order.set_created_at(get_current_time());
-  order.set_time_in_force(v1::TimeInForce::DAY);
-  order.set_strategy_id(signal.strategy_id());
-  return order;
-}
-
-v1::Order
-OrderManager::create_order_from_signal(const v1::ReplaceSignal &signal) {
-  v1::Order order;
-  order.set_symbol(signal.symbol());
-  order.set_side(signal.side());
-  order.set_quantity(signal.target_quantity());
-  order.set_type(v1::OrderType::MARKET);
-  order.set_account_id("quarcc.Rifat");
-  order.set_created_at(get_current_time());
-  order.set_time_in_force(v1::TimeInForce::DAY);
-  order.set_strategy_id(signal.strategy_id());
-  return order;
 }
 
 } // namespace quarcc

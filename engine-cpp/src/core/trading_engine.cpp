@@ -79,7 +79,7 @@ TradingEngine::create_strategy(const StrategyConfig &strat) {
                         std::move(gateway),
                         std::make_unique<SQLiteJournal>(strat.id),
                         std::make_unique<SQLiteOrderStore>(strat.id),
-                        std::make_unique<RiskManager>()));
+                        std::make_unique<RiskManager>(RiskLimits{})));
 
   if (strat.market_data) {
     OrderManager *om = managers_.at(strat.id).get();

@@ -21,6 +21,7 @@ public:
 
   Result<v1::Position> get_position(const std::string &symbol) const;
   v1::PositionList get_all_positions() const;
+  double get_total_pnl() const;
 
 private:
   struct Position {

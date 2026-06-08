@@ -29,11 +29,14 @@ public:
   // Pushes onto the queue only if the depth of it is less than max_depth, drops
   // it otherwise
   // total_pushed_ only incremented if the event is not dropped
+  // Returns true if pushed, false if dropped (queue at max_depth)
   bool try_push(T event, std::size_t max_depth) {
     {
       std::lock_guard lk{mu_};
-      if (q_.size() >= max_depth)
+      if (q_.size() >= max_depth) {
+        ++total_dropped_;
         return false;
+      }
       q_.push(std::move(event));
       ++total_pushed_;
     }
@@ -74,6 +77,11 @@ public:
     return q_.size();
   }
 
+  uint64_t dropped_count() const {
+    std::lock_guard lk{mu_};
+    return total_dropped_;
+  }
+
 private:
   mutable std::mutex mu_;
   std::condition_variable_any cv_; // _any for stop_token overload in pop()
@@ -81,6 +89,7 @@ private:
   std::queue<T> q_;
   uint64_t total_pushed_{0};
   uint64_t total_processed_{0};
+  uint64_t total_dropped_{0};
 };
 
 } // namespace quarcc

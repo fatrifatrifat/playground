@@ -2,7 +2,6 @@
 #include <gtest/gtest.h>
 
 #include <trading/core/order_manager.h>
-#include <trading/interfaces/i_risk_check.h>
 
 #include "helpers/proto_builders.h"
 #include "mocks/mock_execution_gateway.h"
@@ -34,7 +33,7 @@ struct OrderManagerFixture : public Test {
     manager = OrderManager::create_order_manager(
         std::format("strategy_#{}", id), std::make_unique<PositionKeeper>(),
         std::move(gw_owned), std::move(jn_owned), std::move(os_owned),
-        std::make_unique<RiskManager>());
+        std::make_unique<RiskManager>(RiskLimits{}));
   }
 };
 
@@ -165,11 +164,10 @@ TEST_F(OrderManagerFixture, ProcessFillsFullyFilledOrder) {
   auto stored = test::make_stored_order(local_id, "AAPL", v1::Side::BUY, 10.0,
                                         OrderStatus::SUBMITTED, "BROKER_F1");
   ON_CALL(*store, get_order(local_id)).WillByDefault(Return(stored));
-  ON_CALL(*store, update_fill_info(_, _, _))
-      .WillByDefault(Return(std::monostate{}));
 
-  // Fully-filled order must get FILLED status
-  EXPECT_CALL(*store, update_order_status(local_id, OrderStatus::FILLED));
+  // Fully-filled order: apply_fill must be called with FILLED status
+  EXPECT_CALL(*store, apply_fill(local_id, 10.0, 150.0, OrderStatus::FILLED))
+      .WillOnce(Return(std::monostate{}));
 
   auto fill = test::make_fill("BROKER_F1", "AAPL", v1::Side::BUY, 10.0, 150.0);
   gw->trigger_fill(fill);
@@ -197,12 +195,11 @@ TEST_F(OrderManagerFixture, ProcessFillsPartialFill) {
   auto stored = test::make_stored_order(local_id, "AAPL", v1::Side::BUY, 10.0,
                                         OrderStatus::SUBMITTED, "BROKER_P1");
   ON_CALL(*store, get_order(local_id)).WillByDefault(Return(stored));
-  ON_CALL(*store, update_fill_info(_, _, _))
-      .WillByDefault(Return(std::monostate{}));
 
-  // Partial fill -> PARTIALLY_FILLED, NOT FILLED
+  // Partial fill -> apply_fill must be called with PARTIALLY_FILLED status
   EXPECT_CALL(*store,
-              update_order_status(local_id, OrderStatus::PARTIALLY_FILLED));
+              apply_fill(local_id, 5.0, 150.0, OrderStatus::PARTIALLY_FILLED))
+      .WillOnce(Return(std::monostate{}));
 
   auto fill = test::make_fill("BROKER_P1", "AAPL", v1::Side::BUY, 5.0, 150.0);
   gw->trigger_fill(fill);

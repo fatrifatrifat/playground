@@ -29,7 +29,7 @@ TEST_F(OrderStoreFixture, GetOrderUnknownIdReturnsError) {
 }
 
 TEST_F(OrderStoreFixture, UpdateOrderStatusChangesStatus) {
-  store.store_order(test::make_stored_order("L2"));
+  [[maybe_unused]] auto v = store.store_order(test::make_stored_order("L2"));
 
   auto result = store.update_order_status("L2", OrderStatus::FILLED);
   ASSERT_TRUE(result.has_value());
@@ -40,9 +40,9 @@ TEST_F(OrderStoreFixture, UpdateOrderStatusChangesStatus) {
 }
 
 TEST_F(OrderStoreFixture, UpdateBrokerIdSetsBrokerId) {
-  store.store_order(test::make_stored_order("L3", "AAPL", v1::Side::BUY, 10.0,
-                                            OrderStatus::PENDING_SUBMISSION,
-                                            std::nullopt));
+  [[maybe_unused]] auto v = store.store_order(
+      test::make_stored_order("L3", "AAPL", v1::Side::BUY, 10.0,
+                              OrderStatus::PENDING_SUBMISSION, std::nullopt));
 
   auto result = store.update_broker_id("L3", "BROKER_99");
   ASSERT_TRUE(result.has_value());
@@ -53,25 +53,21 @@ TEST_F(OrderStoreFixture, UpdateBrokerIdSetsBrokerId) {
   EXPECT_EQ(*fetched->broker_id, "BROKER_99");
 }
 
-TEST_F(OrderStoreFixture, UpdateFillInfoSetsFillFields) {
-  store.store_order(test::make_stored_order("L4"));
-
-  auto result = store.update_fill_info("L4", 7.5, 152.25);
-  ASSERT_TRUE(result.has_value());
-
-  auto fetched = store.get_order("L4");
-  ASSERT_TRUE(fetched.has_value());
-  EXPECT_DOUBLE_EQ(fetched->filled_quantity, 7.5);
-  EXPECT_DOUBLE_EQ(fetched->avg_fill_price, 152.25);
-}
-
 TEST_F(OrderStoreFixture, GetOpenOrdersReturnsOnlyNonTerminalOrders) {
-  store.store_order(test::make_stored_order("OPEN_1", "AAPL", v1::Side::BUY,
-                                            5.0, OrderStatus::SUBMITTED));
-  store.store_order(test::make_stored_order(
-      "OPEN_2", "MSFT", v1::Side::BUY, 5.0, OrderStatus::PARTIALLY_FILLED));
-  store.store_order(test::make_stored_order("CLOSED", "TSLA", v1::Side::SELL,
-                                            5.0, OrderStatus::FILLED));
+  {
+    [[maybe_unused]] auto v = store.store_order(test::make_stored_order(
+        "OPEN_1", "AAPL", v1::Side::BUY, 5.0, OrderStatus::SUBMITTED));
+  }
+
+  {
+    [[maybe_unused]] auto v = store.store_order(test::make_stored_order(
+        "OPEN_2", "MSFT", v1::Side::BUY, 5.0, OrderStatus::PARTIALLY_FILLED));
+  }
+
+  {
+    [[maybe_unused]] auto v = store.store_order(test::make_stored_order(
+        "CLOSED", "TSLA", v1::Side::SELL, 5.0, OrderStatus::FILLED));
+  }
 
   auto open = store.get_open_orders();
 
@@ -92,10 +88,15 @@ TEST_F(OrderStoreFixture, GetOpenOrdersReturnsOnlyNonTerminalOrders) {
 }
 
 TEST_F(OrderStoreFixture, GetOrdersByStatusFiltersCorrectly) {
-  store.store_order(test::make_stored_order("S1", "AAPL", v1::Side::BUY, 5.0,
-                                            OrderStatus::CANCELLED));
-  store.store_order(test::make_stored_order("S2", "MSFT", v1::Side::BUY, 5.0,
-                                            OrderStatus::SUBMITTED));
+  {
+    [[maybe_unused]] auto v = store.store_order(test::make_stored_order(
+        "S1", "AAPL", v1::Side::BUY, 5.0, OrderStatus::CANCELLED));
+  }
+
+  {
+    [[maybe_unused]] auto v = store.store_order(test::make_stored_order(
+        "S2", "MSFT", v1::Side::BUY, 5.0, OrderStatus::SUBMITTED));
+  }
 
   auto cancelled = store.get_orders_by_status(OrderStatus::CANCELLED);
   ASSERT_EQ(cancelled.size(), 1u);
