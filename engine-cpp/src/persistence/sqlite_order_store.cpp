@@ -203,10 +203,10 @@ SQLiteOrderStore::update_broker_id(const std::string &local_id,
   return std::monostate{};
 }
 
-Result<std::monostate>
-SQLiteOrderStore::update_fill_info(const std::string &local_id,
-                                   double filled_quantity, double avg_price) {
-
+Result<std::monostate> SQLiteOrderStore::apply_fill(const std::string &local_id,
+                                                    double filled_quantity,
+                                                    double avg_price,
+                                                    OrderStatus new_status) {
   std::lock_guard lock(mutex_);
 
   const char *sql = R"(
@@ -219,33 +219,33 @@ SQLiteOrderStore::update_fill_info(const std::string &local_id,
                (filled_quantity + ?)
         END,
       filled_quantity = filled_quantity + ?,
-      updated_at = datetime('now')
+      status          = ?,
+      updated_at      = datetime('now')
     WHERE local_id = ?
   )";
 
   sqlite3_stmt *stmt = nullptr;
   int rc = sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr);
-
   if (rc != SQLITE_OK) [[unlikely]] {
-    return std::unexpected(Error{"Failed to prepare update statement: " +
+    return std::unexpected(Error{"Failed to prepare apply_fill statement: " +
                                      std::string(sqlite3_errmsg(db_)),
                                  ErrorType::Error});
   }
 
-  // TODO: Verify if this is the right values for the placeholders
   sqlite3_bind_double(stmt, 1, avg_price);
   sqlite3_bind_double(stmt, 2, avg_price);
   sqlite3_bind_double(stmt, 3, filled_quantity);
   sqlite3_bind_double(stmt, 4, filled_quantity);
   sqlite3_bind_double(stmt, 5, filled_quantity);
-  sqlite3_bind_text(stmt, 6, local_id.c_str(), -1, SQLITE_TRANSIENT);
+  sqlite3_bind_int(stmt, 6, static_cast<int>(new_status));
+  sqlite3_bind_text(stmt, 7, local_id.c_str(), -1, SQLITE_TRANSIENT);
 
   rc = sqlite3_step(stmt);
   sqlite3_finalize(stmt);
 
-  if (rc != SQLITE_DONE) {
+  if (rc != SQLITE_DONE) [[unlikely]] {
     return std::unexpected(
-        Error{"Failed to update fill info: " + std::string(sqlite3_errmsg(db_)),
+        Error{"Failed to apply fill: " + std::string(sqlite3_errmsg(db_)),
               ErrorType::Error});
   }
 

@@ -8,7 +8,7 @@
 #include <trading/interfaces/i_journal.h>
 #include <trading/interfaces/i_market_data_feed.h>
 #include <trading/interfaces/i_order_store.h>
-#include <trading/interfaces/i_risk_check.h>
+#include <trading/core/risk_manager.h>
 #include <trading/utils/event_queue.h>
 #include <trading/utils/order_id_generator.h>
 #include <trading/utils/order_id_types.h>
@@ -87,8 +87,6 @@ private:
                std::unique_ptr<IJournal> lj, std::unique_ptr<IOrderStore> os,
                std::unique_ptr<RiskManager> rm);
 
-  v1::Order create_order_from_signal(const v1::StrategySignal &signal);
-  v1::Order create_order_from_signal(const v1::ReplaceSignal &signal);
 
   // Big dawg loop that cleans up the event queue by calling the right handler
   // for the queue's front event

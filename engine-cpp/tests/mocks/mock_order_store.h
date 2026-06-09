@@ -15,9 +15,9 @@ public:
   MOCK_METHOD(Result<std::monostate>, update_broker_id,
               (const std::string &local_id, const std::string &broker_id),
               (override));
-  MOCK_METHOD(Result<std::monostate>, update_fill_info,
+  MOCK_METHOD(Result<std::monostate>, apply_fill,
               (const std::string &local_id, double filled_quantity,
-               double avg_price),
+               double avg_price, OrderStatus new_status),
               (override));
   MOCK_METHOD(Result<StoredOrder>, get_order, (const std::string &local_id),
               (override));

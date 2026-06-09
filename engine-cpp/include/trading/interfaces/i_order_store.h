@@ -65,9 +65,11 @@ public:
   virtual Result<std::monostate>
   update_broker_id(const std::string &local_id,
                    const std::string &broker_id) = 0;
-  virtual Result<std::monostate> update_fill_info(const std::string &local_id,
-                                                  double filled_quantity,
-                                                  double avg_price) = 0;
+  // Atomically updates fill info and order status in one DB round-trip
+  virtual Result<std::monostate> apply_fill(const std::string &local_id,
+                                            double filled_quantity,
+                                            double avg_price,
+                                            OrderStatus new_status) = 0;
   virtual Result<StoredOrder> get_order(const std::string &local_id) = 0;
   virtual std::vector<StoredOrder> get_open_orders() = 0;
   virtual std::vector<StoredOrder> get_orders_by_status(OrderStatus status) = 0;
