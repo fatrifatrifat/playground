@@ -296,28 +296,28 @@ void TradingEngine::ClearFillStream(const std::string &strategy_id) {
 Result<std::monostate>
 TradingEngine::ActivateKillSwitch(const v1::KillSwitchRequest &req) {
   {
+    std::shared_lock lk{managers_mu_};
     if (auto it = managers_.find(req.strategy_id()); it != managers_.end()) {
       it->second->cancel_all(req.reason(), req.initiated_by());
       managers_.erase(it);
+      if (managers_.empty()) {
+        {
+          std::lock_guard lk{run_mu_};
+          running_ = false;
+        }
+        run_cv_.notify_one();
+      }
       return std::monostate{};
     }
-
-    return std::unexpected(Error{
-        .message_ =
-            std::format("No strategy by the name of {}, failed to terminate",
-                        req.strategy_id()),
-        .type_ = ErrorType::Error}
-
-    );
   }
 
-  {
-    std::lock_guard lk{run_mu_};
-    running_ = false;
-  }
-  run_cv_.notify_one();
+  return std::unexpected(Error{
+      .message_ =
+          std::format("No strategy by the name of {}, failed to terminate",
+                      req.strategy_id()),
+      .type_ = ErrorType::Error}
 
-  return std::monostate{};
+  );
 }
 
 } // namespace quarcc
