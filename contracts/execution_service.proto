@@ -83,7 +83,7 @@ message KillSwitchRequest {
 
 message MarketDataSubscriptionMessage {
   string symbol = 1;
-  string period = 2;
+  optional string period = 2;
 }
 
 message MarketDataConfigMessage {

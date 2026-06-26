@@ -3,6 +3,7 @@
 #include <trading/core/order_manager.h>
 #include <trading/interfaces/i_market_data_feed.h>
 
+#include <optional>
 #include <unordered_map>
 #include <vector>
 
@@ -35,8 +36,8 @@ class FeedRegistry {
 public:
   // Subscribes OM's to certain feeds, it's static right now but might think of
   // making it dynamic as well as for new strategies
-  void register_subscription(FeedKey key, Symbol symbol, BarPeriod period,
-                             OrderManager *om);
+  void register_subscription(FeedKey key, Symbol symbol,
+                             std::optional<BarPeriod> period, OrderManager *om);
 
   // Pre registers a feed. Skips create_feed entirely by passing in a
   // IMarketDataFeed object from outside

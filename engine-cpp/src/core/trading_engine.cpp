@@ -137,7 +137,9 @@ TradingEngine::RegisterStrategy(const v1::RegisterStrategyRequest &req) {
     MarketDataConfig md;
     md.feed = req.market_data().feed();
     for (const auto &sub : req.market_data().subscriptions())
-      md.subscriptions.push_back({sub.symbol(), sub.period()});
+      md.subscriptions.push_back(
+          {sub.symbol(), (sub.has_period() ? std::make_optional(sub.period())
+                                           : std::nullopt)});
     strat.market_data = std::move(md);
   }
 
@@ -296,7 +298,7 @@ void TradingEngine::ClearFillStream(const std::string &strategy_id) {
 Result<std::monostate>
 TradingEngine::ActivateKillSwitch(const v1::KillSwitchRequest &req) {
   {
-    std::shared_lock lk{managers_mu_};
+    std::unique_lock lk{managers_mu_};
     if (auto it = managers_.find(req.strategy_id()); it != managers_.end()) {
       it->second->cancel_all(req.reason(), req.initiated_by());
       managers_.erase(it);

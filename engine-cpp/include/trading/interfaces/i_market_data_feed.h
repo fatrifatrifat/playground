@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <functional>
+#include <optional>
 #include <string>
 
 namespace quarcc {
@@ -34,8 +35,10 @@ public:
   virtual void stop() = 0;
 
   // Subscribe to bar data for a symbol at the given period (e.g. "1m", "1d").
-  virtual void subscribe(const Symbol &symbol, const BarPeriod &period) = 0;
-  virtual void unsubscribe(const Symbol &symbol, const BarPeriod &period) = 0;
+  virtual void subscribe(const Symbol &symbol,
+                         std::optional<BarPeriod> period = std::nullopt) = 0;
+  virtual void unsubscribe(const Symbol &symbol,
+                           std::optional<BarPeriod> period) = 0;
 
   // Handlers are set by FeedRegistry to fan out into OM queues.
   virtual void set_bar_handler(std::function<void(const Bar &)> handler) = 0;
