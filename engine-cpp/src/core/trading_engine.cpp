@@ -13,12 +13,7 @@ namespace quarcc {
 void TradingEngine::Run(const char *config_path) {
   GOOGLE_PROTOBUF_VERIFY_VERSION;
 
-  try {
-    process_config(config_path);
-  } catch (const std::exception &e) {
-    std::cerr << "Config error: " << e.what() << std::endl;
-    return;
-  }
+  server_ = std::make_unique<gRPCServer>(config_path, *this);
 
   feed_registry_.start_all();
   server_->start();
@@ -104,18 +99,6 @@ TradingEngine::create_strategy(const StrategyConfig &strat) {
   return std::monostate{};
 }
 
-void TradingEngine::process_config(const std::string &path) {
-  const Config config = parse_config(path);
-
-  for (const auto &strat : config.strategies) {
-    if (auto r = create_strategy(strat); !r)
-      throw std::runtime_error("Failed to create strategy '" + strat.id +
-                               "': " + r.error().message_);
-  }
-
-  server_ = std::make_unique<gRPCServer>(config.network.grpc.host_post, *this);
-}
-
 // This is the epic dynamic strategy registration function
 Result<std::monostate>
 TradingEngine::RegisterStrategy(const v1::RegisterStrategyRequest &req) {
@@ -144,6 +127,15 @@ TradingEngine::RegisterStrategy(const v1::RegisterStrategyRequest &req) {
   }
 
   std::unique_lock lk{managers_mu_};
+  if (std::any_of(managers_.begin(), managers_.end(),
+                  [&](const auto &manager_it) {
+                    return manager_it.first == strat.id;
+                  })) {
+    return std::unexpected(Error{
+        .message_ = "A strategy with this ID already exists.",
+        .type_ = ErrorType::Error,
+    });
+  }
   return create_strategy(strat);
 }
 
