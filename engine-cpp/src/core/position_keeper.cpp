@@ -102,7 +102,7 @@ double PositionKeeper::get_total_pnl() const {
   std::shared_lock lock{mutex_};
   return std::accumulate(
       positions_.begin(), positions_.end(), 0,
-      [](int sum, const auto &p) { return sum + p.second.rPnL; });
+      [](double sum, const auto &p) { return sum + p.second.rPnL; });
 }
 
 }; // namespace quarcc
