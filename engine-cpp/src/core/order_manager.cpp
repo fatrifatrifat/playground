@@ -129,10 +129,6 @@ void OrderManager::handle_fill(const v1::ExecutionReport &fill) {
 
     if (auto r = order_store_->update_order_status(local_id, new_status); !r) {
       journal_->log(Event::ERROR_OCCURRED, r.error().message_, local_id);
-      journal_->log(
-          proto_status == v1::OrderStatus::REJECTED ? Event::ORDER_REJECTED
-                                                    : Event::ORDER_CANCELLED,
-          "Reported by gateway for broker_id: " + broker_id, local_id);
     }
 
     id_mapper_->remove_mapping(local_id);
