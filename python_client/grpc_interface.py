@@ -30,6 +30,7 @@ class ExecutionClient:
         self.logger = logging.getLogger(__name__)
         self.channel = grpc.insecure_channel(server_address)
         self.stub = execution_service_pb2_grpc.ExecutionServiceStub(self.channel)
+        self._closed = False
         self.logger.info(f"Connected to execution engine at {server_address}")
 
     def submit_signal(
@@ -275,4 +276,7 @@ class ExecutionClient:
 
     def close(self):
         """Close connection"""
+        if self._closed:
+            return
+        self._closed = True
         self.channel.close()
