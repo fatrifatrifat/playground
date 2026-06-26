@@ -3,6 +3,7 @@ from __future__ import annotations
 import abc
 import logging
 import threading
+import time
 from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
@@ -26,6 +27,7 @@ class BaseStrategy(abc.ABC):
         self._config = config
         self._client = grpc_interface.ExecutionClient(server_address)
         self._threads: list[threading.Thread] = []
+        self._stopping = threading.Event()
 
     def on_start(self) -> None:
         """Called once after the strategy is registered, before data arrives"""
@@ -98,29 +100,49 @@ class BaseStrategy(abc.ABC):
         fill_t.start()
         self._threads.append(fill_t)
 
-        for t in self._threads:
-            t.join()
-
-        self.on_stop()
-        self._client.close()
+        try:
+            while any(t.is_alive() for t in self._threads):
+                for t in self._threads:
+                    t.join(timeout=0.2)
+        except KeyboardInterrupt:
+            self.stop(reason="strategy interrupted by user")
+            for t in self._threads:
+                t.join(timeout=2.0)
+        finally:
+            self.on_stop()
+            self._client.close()
 
     def stop(self, reason="strategy stopped by user") -> None:
-        """Signals the strategy to stop by killing the switch"""
+        """Stop this strategy and cancel its open streaming RPCs"""
+        if self._stopping.is_set():
+            return
+
+        self._stopping.set()
         self._client.activate_kill_switch(
             reason=reason,
             initiated_by=self._config.strategy_id,
             strategy_id=self._config.strategy_id,
         )
+        time.sleep(0.05)
+        self._client.close()
 
     def _run_market_data_stream(self) -> None:
-        self._client.stream_market_data(
-            self._config.strategy_id,
-            on_tick=self.on_tick,
-            on_bar=self.on_bar,
-        )
+        try:
+            self._client.stream_market_data(
+                self._config.strategy_id,
+                on_tick=self.on_tick,
+                on_bar=self.on_bar,
+            )
+        except Exception:
+            logger.exception("Market data stream failed")
+            self.stop(reason="market data stream failed")
 
     def _run_fill_stream(self) -> None:
-        self._client.stream_fills(
-            self._config.strategy_id,
-            on_fill=self.on_fill,
-        )
+        try:
+            self._client.stream_fills(
+                self._config.strategy_id,
+                on_fill=self.on_fill,
+            )
+        except Exception:
+            logger.exception("Fill stream failed")
+            self.stop(reason="fill stream failed")

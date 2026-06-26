@@ -56,27 +56,28 @@ void GrpcMarketDataFeed::set_tick_handler(
 }
 
 void GrpcMarketDataFeed::subscribe(const Symbol &symbol,
-                                   const BarPeriod &period) {
+                                   std::optional<BarPeriod> period) {
   auto it = std::ranges::find_if(
       subscriptions_, [&](const auto &s) { return s.symbol() == symbol; });
   if (it == subscriptions_.end()) {
     v1::SymbolSubscription sub;
     sub.set_symbol(symbol);
-    if (!period.empty())
-      sub.add_bar_periods(period);
+    if (period.has_value())
+      sub.add_bar_periods(*period);
     subscriptions_.push_back(std::move(sub));
   } else {
     // If symbol is already subscribed to, check if that specific period is
     // subscribed to
-    if (!period.empty()) {
+    if (period.has_value()) {
       const auto &periods = it->bar_periods();
       if (std::ranges::find(periods, period) == periods.end())
-        it->add_bar_periods(period);
+        it->add_bar_periods(*period);
     }
   }
 }
 
-void GrpcMarketDataFeed::unsubscribe(const Symbol &, const BarPeriod &) {}
+void GrpcMarketDataFeed::unsubscribe(const Symbol &, std::optional<BarPeriod>) {
+}
 
 void GrpcMarketDataFeed::start() {
   stream_thread_ = std::jthread([this](std::stop_token st) { run_stream(st); });

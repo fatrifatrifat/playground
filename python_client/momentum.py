@@ -9,8 +9,14 @@ class MomentumStrategy(BaseStrategy):
         print("strategy started")
 
     def on_bar(self, bar):
+        global counter
+        print(f"bar #{counter}: {bar.symbol}, open: {bar.open}, close: {bar.close}")
         if bar.close > bar.open:
             self.buy(bar.symbol, qty=1.0)
+        if counter == 10:
+            self.stop(reason="momentum strategy reached bar limit")
+            return
+        counter += 1
 
     def on_tick(self, tick):
         global counter
@@ -38,13 +44,7 @@ config = StrategyConfig(
             Subscription("AAPL", "1m"),
             Subscription("A", "1s"),
             Subscription("B", "5m"),
-            Subscription("C", "5s"),
-            Subscription("D", "1m"),
-            Subscription("E", "1m"),
-            Subscription("F", "1m"),
-            Subscription("G", "1m"),
-            Subscription("H", "1m"),
-            Subscription("I", "1m"),
+            Subscription("C"),
         ],
     ),
 )

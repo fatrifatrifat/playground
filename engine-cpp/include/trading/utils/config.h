@@ -21,7 +21,7 @@ struct NetworkConfig {
 
 struct MarketDataSubscription {
   Symbol symbol;
-  BarPeriod period; // e.g. "1m", "5m", "1d"
+  std::optional<BarPeriod> period = std::nullopt; // e.g. "1m", "5m", "1d"
 };
 
 struct MarketDataConfig {
@@ -88,9 +88,14 @@ inline Config parse_config(const std::string &path) {
       md.feed = node["market_data"]["feed"].as<std::string>();
 
       for (const auto &sub : node["market_data"]["subscriptions"]) {
+        std::optional<BarPeriod> period;
+        if (sub["period"]) {
+          period = sub["period"].as<std::string>();
+        }
+
         md.subscriptions.push_back({
             sub["symbol"].as<std::string>(),
-            sub["period"].as<std::string>(),
+            std::move(period),
         });
       }
 

@@ -5,7 +5,8 @@
 namespace quarcc {
 
 void FeedRegistry::register_subscription(FeedKey key, Symbol symbol,
-                                         BarPeriod period, OrderManager *om) {
+                                         std::optional<BarPeriod> period,
+                                         OrderManager *om) {
   if (!feeds_.contains(key)) {
     auto feed = create_feed(key);
 
@@ -21,8 +22,10 @@ void FeedRegistry::register_subscription(FeedKey key, Symbol symbol,
 
   feeds_.at(key)->subscribe(symbol, period);
 
-  bar_subs_[{key, symbol, period}].push_back(om);
-  tick_subs_[{key, symbol}].push_back(om);
+  if (period.has_value())
+    bar_subs_[{key, symbol, period.value()}].push_back(om);
+  else
+    tick_subs_[{key, symbol}].push_back(om);
 }
 
 void FeedRegistry::on_bar(const FeedKey &key, const Bar &bar) {

@@ -31,11 +31,13 @@ public:
   void stop() override;
 
   // Buffers the instruments to subscribe to when start() is called
-  void subscribe(const Symbol &symbol, const BarPeriod &period) override;
+  void subscribe(const Symbol &symbol,
+                 std::optional<BarPeriod> period) override;
   // All subscritions are static, so unsubscribing doesn't really exists unless
   // the client gets killed
   // TODO: DYNAMIC SUBSCRIPTIONS (and also strategies)
-  void unsubscribe(const Symbol &symbol, const BarPeriod &period) override;
+  void unsubscribe(const Symbol &symbol,
+                   std::optional<BarPeriod> period) override;
 
   void set_bar_handler(std::function<void(const Bar &)> handler) override;
   void set_tick_handler(std::function<void(const Tick &)> handler) override;
