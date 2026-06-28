@@ -1,6 +1,5 @@
 cmake_minimum_required(VERSION 3.24)
 
-# Core business logic (excluding top-level orchestrator .cpp)
 add_library(trading_core STATIC
     order_manager.cpp
     position_keeper.cpp
@@ -21,7 +20,6 @@ target_link_libraries(trading_core
 
 trading_apply_warnings(trading_core)
 
-# Orchestrator target
 add_library(trading_engine STATIC
     trading_engine.cpp
 )
@@ -35,16 +33,7 @@ target_link_libraries(trading_engine
         trading_gateways
         trading_grpc
         trading_persistence
-        trading_observability
         Threads::Threads
-)
-
-# Propagate feature flags so code can #if on optional modules
-target_compile_definitions(trading_engine
-    PUBLIC
-        TRADING_WITH_FIX=${TRADING_WITH_FIX}
-        TRADING_WITH_WEBSOCKET=${TRADING_WITH_WEBSOCKET}
-        TRADING_WITH_PROMETHEUS=${TRADING_WITH_PROMETHEUS}
 )
 
 trading_apply_warnings(trading_engine)
