@@ -14,13 +14,15 @@ concept OrderSignal = requires(const T &s) {
   s.strategy_id();
 };
 
-template <OrderSignal T> v1::Order create_order_from_signal(const T &signal) {
+template <OrderSignal T>
+v1::Order create_order_from_signal(const T &signal,
+                                   std::string_view account_id) {
   v1::Order order;
   order.set_symbol(signal.symbol());
   order.set_side(signal.side());
   order.set_quantity(signal.target_quantity());
   order.set_type(v1::OrderType::MARKET);
-  order.set_account_id("quarcc.Rifat");
+  order.set_account_id(account_id);
   order.set_created_at(get_current_time());
   order.set_time_in_force(v1::TimeInForce::DAY);
   order.set_strategy_id(signal.strategy_id());
@@ -251,7 +253,7 @@ void OrderManager::handle_retry_fills() {
 Result<LocalOrderId>
 OrderManager::process_signal(const v1::StrategySignal &signal) {
   std::string local_id = id_generator_->generate();
-  v1::Order order = create_order_from_signal(signal);
+  v1::Order order = create_order_from_signal(signal, account_id_);
   order.set_id(local_id);
   journal_->log(Event::ORDER_CREATED, order.DebugString(), order.id());
 
@@ -322,6 +324,7 @@ OrderManager::process_signal(const v1::StrategySignal &signal) {
   return local_id;
 }
 
+// TODO: Cancel signal should still return something, like the ExecutionReport
 Result<std::monostate>
 OrderManager::process_signal(const v1::CancelSignal &signal) {
   std::string local_id = signal.order_id();
@@ -359,7 +362,7 @@ OrderManager::process_signal(const v1::ReplaceSignal &signal) {
   }
 
   std::string new_local_id = id_generator_->generate();
-  v1::Order new_order = create_order_from_signal(signal);
+  v1::Order new_order = create_order_from_signal(signal, account_id_);
   new_order.set_id(new_local_id);
 
   journal_->log(Event::ORDER_REPLACED,
