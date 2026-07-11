@@ -2,11 +2,14 @@
 #include <trading/gateways/grpc_market_data_feed.h>
 #include <trading/gateways/simulated_feed.h>
 
+#include <algorithm>
+
 namespace quarcc {
 
 void FeedRegistry::register_subscription(FeedKey key, Symbol symbol,
                                          std::optional<BarPeriod> period,
                                          OrderManager *om) {
+  std::unique_lock lk{feed_mu_};
   if (!feeds_.contains(key)) {
     auto feed = create_feed(key);
 
@@ -29,6 +32,7 @@ void FeedRegistry::register_subscription(FeedKey key, Symbol symbol,
 }
 
 void FeedRegistry::on_bar(const FeedKey &key, const Bar &bar) {
+  std::shared_lock lk{feed_mu_};
   auto it = bar_subs_.find({key, bar.symbol, bar.period});
   if (it == bar_subs_.end()) [[unlikely]]
     return;
@@ -38,6 +42,7 @@ void FeedRegistry::on_bar(const FeedKey &key, const Bar &bar) {
 }
 
 void FeedRegistry::on_tick(const FeedKey &key, const Tick &tick) {
+  std::shared_lock lk{feed_mu_};
   auto it = tick_subs_.find({key, tick.symbol});
   if (it == tick_subs_.end()) [[unlikely]]
     return;
@@ -47,18 +52,22 @@ void FeedRegistry::on_tick(const FeedKey &key, const Tick &tick) {
 }
 
 void FeedRegistry::start_all() {
+  std::shared_lock lk{feed_mu_};
   running_ = true;
   for (auto &[key, feed] : feeds_)
     feed->start();
 }
 
 void FeedRegistry::stop_all() {
+  std::shared_lock lk{feed_mu_};
+  running_ = false;
   for (auto &[key, feed] : feeds_)
     feed->stop();
 }
 
 void FeedRegistry::register_feed(FeedKey key,
                                  std::unique_ptr<IMarketDataFeed> feed) {
+  std::unique_lock lk{feed_mu_};
   feed->set_bar_handler([this, key](const Bar &b) { on_bar(key, b); });
   feed->set_tick_handler([this, key](const Tick &t) { on_tick(key, t); });
   feeds_.emplace(key, std::move(feed));
@@ -66,7 +75,16 @@ void FeedRegistry::register_feed(FeedKey key,
     feeds_.at(key)->start();
 }
 
+void FeedRegistry::unregister_manager(OrderManager* manager) {
+  std::unique_lock lk{feed_mu_};
+  for (auto &[key, oms] : bar_subs_)
+    oms.erase(std::remove(oms.begin(), oms.end(), manager), oms.end());
+  for (auto &[key, oms] : tick_subs_)
+    oms.erase(std::remove(oms.begin(), oms.end(), manager), oms.end());
+}
+
 bool FeedRegistry::has_feed(const FeedKey &key) const {
+  std::shared_lock lk{feed_mu_};
   return feeds_.contains(key);
 }
 

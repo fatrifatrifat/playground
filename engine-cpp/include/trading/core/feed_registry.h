@@ -6,6 +6,7 @@
 #include <optional>
 #include <unordered_map>
 #include <vector>
+#include <shared_mutex>
 
 namespace quarcc {
 
@@ -42,6 +43,9 @@ public:
   // Pre registers a feed. Skips create_feed entirely by passing in a
   // IMarketDataFeed object from outside
   void register_feed(FeedKey key, std::unique_ptr<IMarketDataFeed> feed);
+
+  // Unregisters a specific manager to avoid dangling pointers
+  void unregister_manager(OrderManager* manager);
 
   bool has_feed(const FeedKey &key) const;
 
@@ -88,6 +92,7 @@ private:
   };
 
 private:
+  mutable std::shared_mutex feed_mu_;
   // Set to true by start_all()
   // Used so strategies registring later can have a different behaviour
   // Basically not waiting for strat_all() which only gets called at the

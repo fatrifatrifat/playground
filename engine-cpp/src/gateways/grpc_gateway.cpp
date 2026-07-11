@@ -123,7 +123,12 @@ void GrpcGateway::run_fill_stream(std::stop_token st) {
       if (!exec_id.empty()) {
         if (seen_execution_ids_.contains(exec_id))
           continue;
+        if (seen_execution_ids_.size() >= kMaxSeenIds) {
+          seen_execution_ids_.erase(seen_id_order_.front());
+          seen_id_order_.pop_front();
+        }
         seen_execution_ids_.insert(exec_id);
+        seen_id_order_.push_back(exec_id);
       }
 
       if (fill_handler_) [[likely]]

@@ -69,7 +69,7 @@ PositionKeeper::get_position(const std::string &symbol) const {
   std::shared_lock lock(mutex_);
 
   auto it = positions_.find(symbol);
-  if (it == positions_.end()) [[unlikely]] {
+  if (it == positions_.end()) {
     return std::unexpected(Error{"Position not found", ErrorType::Error});
   }
 
@@ -101,7 +101,7 @@ v1::PositionList PositionKeeper::get_all_positions() const {
 double PositionKeeper::get_total_pnl() const {
   std::shared_lock lock{mutex_};
   return std::accumulate(
-      positions_.begin(), positions_.end(), 0,
+      positions_.begin(), positions_.end(), 0.,
       [](double sum, const auto &p) { return sum + p.second.rPnL; });
 }
 

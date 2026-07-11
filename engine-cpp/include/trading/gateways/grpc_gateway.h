@@ -4,6 +4,7 @@
 #include <trading/interfaces/i_execution_gateway.h>
 
 #include <condition_variable>
+#include <deque>
 #include <mutex>
 #include <thread>
 #include <unordered_set>
@@ -52,8 +53,10 @@ private:
 
   FillHandler fill_handler_;
 
-  // Only used by the stream_thread_ so doesn't need a mutex or anything
+  // Only accessed from stream_thread_ so no lock needed
+  static constexpr std::size_t kMaxSeenIds = 10'000;
   std::unordered_set<std::string> seen_execution_ids_;
+  std::deque<std::string> seen_id_order_;
 
   // ctx_ holds the ClientContext for the current StreamFills RPC
   std::mutex ctx_mu_;

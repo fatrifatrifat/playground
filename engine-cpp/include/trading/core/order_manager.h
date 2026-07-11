@@ -128,6 +128,9 @@ private:
   std::function<void(const v1::ExecutionReport &)> fill_sink_;
   std::mutex fill_sink_mu_;
 
+  // TODO: CHange memory orders on use
+  std::atomic<int> open_order_count_{};
+
   // IMPORTANT: dispatch_thread_ must remain last, its destructor joins the
   // thread before any other members are destroyed
   EventQueue<OMEvent> queue_;

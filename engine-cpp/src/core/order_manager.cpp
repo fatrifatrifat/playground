@@ -181,8 +181,10 @@ void OrderManager::handle_fill(const v1::ExecutionReport &fill) {
 
   // 7. Remove fully-filled orders from the mapper since they're completely
   // filled
-  if (fully_filled)
+  if (fully_filled) {
     id_mapper_->remove_mapping(local_id);
+    open_order_count_--;
+  }
 
   // 8. Notify fill sink (StreamFills gRPC stream)
   {
@@ -269,6 +271,7 @@ OrderManager::process_signal(const v1::StrategySignal &signal) {
   }
 
   {
+    // const auto open_count = open_order_count_.load();
     const auto open_count = order_store_->get_open_orders().size();
     const double realized_pnl = position_keeper_->get_total_pnl();
     if (auto r =
@@ -308,6 +311,7 @@ OrderManager::process_signal(const v1::StrategySignal &signal) {
   }
 
   id_mapper_->add_mapping(local_id, broker_id);
+  open_order_count_++;
 
   // Signal the dispatch thread to retry any fills that arrived before the
   // mapping was established (the deferred fill race window)
@@ -348,6 +352,7 @@ OrderManager::process_signal(const v1::CancelSignal &signal) {
     }
   }
 
+  open_order_count_--;
   return result;
 }
 
@@ -385,9 +390,6 @@ OrderManager::process_signal(const v1::ReplaceSignal &signal) {
     return std::unexpected(r.error());
   }
 
-  id_mapper_->add_mapping(new_local_id, new_broker_id);
-  enqueue(RetryFillsEvent{});
-
   StoredOrder stored;
   stored.order = new_order;
   stored.local_id = new_local_id;
@@ -399,6 +401,9 @@ OrderManager::process_signal(const v1::ReplaceSignal &signal) {
     journal_->log(Event::ERROR_OCCURRED, r.error().message_, new_local_id);
     return std::unexpected(r.error());
   }
+
+  id_mapper_->add_mapping(new_local_id, new_broker_id);
+  enqueue(RetryFillsEvent{});
 
   journal_->log(Event::ORDER_SUBMITTED,
                 std::format("Old: {} -> New: {} (Broker: {})", old_local_id,

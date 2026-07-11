@@ -293,6 +293,7 @@ TradingEngine::ActivateKillSwitch(const v1::KillSwitchRequest &req) {
     std::unique_lock lk{managers_mu_};
     if (auto it = managers_.find(req.strategy_id()); it != managers_.end()) {
       it->second->cancel_all(req.reason(), req.initiated_by());
+      feed_registry_.unregister_manager(it->second.get());
       managers_.erase(it);
       if (managers_.empty()) {
         {
