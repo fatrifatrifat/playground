@@ -21,28 +21,26 @@ add_library(trading::contracts ALIAS trading_contracts)
 
 target_link_libraries(trading_contracts PUBLIC protobuf::libprotobuf gRPC::grpc++ gRPC::grpc)
 
+# Creates our custom types on .proto
 protobuf_generate(
-    TARGET         trading_contracts
-    LANGUAGE       cpp
-    PROTOS         ${TRADING_PROTO_FILES}
-    IMPORT_DIRS    ${CMAKE_CURRENT_SOURCE_DIR}
+    TARGET trading_contracts
+    LANGUAGE cpp
+    PROTOC_EXE $<TARGET_FILE:protobuf::protoc>
+    PROTOS ${TRADING_PROTO_FILES}
+    IMPORT_DIRS ${CMAKE_CURRENT_SOURCE_DIR}
     PROTOC_OUT_DIR ${TRADING_PROTO_GEN_DIR}
 )
 
-if(TARGET gRPC::grpc_cpp_plugin)
-    set(_GRPC_CPP_PLUGIN_EXECUTABLE $<TARGET_FILE:gRPC::grpc_cpp_plugin>)
-else()
-    find_program(_GRPC_CPP_PLUGIN_EXECUTABLE grpc_cpp_plugin REQUIRED)
-endif()
-
+# Creates the gRPC services
 protobuf_generate(
-    TARGET               trading_contracts
-    LANGUAGE             grpc
-    GENERATE_EXTENSIONS  .grpc.pb.h .grpc.pb.cc
-    PLUGIN               "protoc-gen-grpc=${_GRPC_CPP_PLUGIN_EXECUTABLE}"
-    PROTOS               ${TRADING_PROTO_FILES}
-    IMPORT_DIRS          ${CMAKE_CURRENT_SOURCE_DIR}
-    PROTOC_OUT_DIR       ${TRADING_PROTO_GEN_DIR}
+    TARGET trading_contracts
+    LANGUAGE grpc
+    PROTOC_EXE $<TARGET_FILE:protobuf::protoc>
+    GENERATE_EXTENSIONS .grpc.pb.h .grpc.pb.cc
+    PLUGIN "protoc-gen-grpc=$<TARGET_FILE:gRPC::grpc_cpp_plugin>"
+    PROTOS ${TRADING_PROTO_FILES}
+    IMPORT_DIRS ${CMAKE_CURRENT_SOURCE_DIR}
+    PROTOC_OUT_DIR ${TRADING_PROTO_GEN_DIR}
 )
 
 target_include_directories(trading_contracts

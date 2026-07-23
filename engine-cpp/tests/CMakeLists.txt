@@ -1,3 +1,5 @@
+find_package(GTest REQUIRED)
+
 set(TRADING_TEST_SOURCES
     unit/test_position_keeper.cpp
     unit/test_order_id_mapper.cpp
