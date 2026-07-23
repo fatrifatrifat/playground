@@ -1,3 +1,4 @@
+#include <format>
 #include <iostream>
 #include <stdexcept>
 #include <trading/persistence/sqlite_order_store.h>

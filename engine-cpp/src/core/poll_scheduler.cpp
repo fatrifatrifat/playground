@@ -1,4 +1,4 @@
-#include <print>
+#include <iostream>
 #include <trading/core/poll_scheduler.h>
 
 namespace quarcc {
@@ -55,8 +55,8 @@ void PollScheduler::run() {
     try {
       task.fn_();
     } catch (const std::exception &e) {
-      std::println("[Scheduler] Strategy {} threw: {}", task.strategy_id_,
-                   e.what());
+      std::cerr << "[Scheduler] Strategy " << task.strategy_id_
+                << " threw: " << e.what() << '\n';
     }
 
     task.next_run_ = Clock::now() + task.interval_;

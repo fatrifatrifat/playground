@@ -1,3 +1,4 @@
+#include <numeric>
 #include <trading/core/position_keeper.h>
 
 namespace quarcc {

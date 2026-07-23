@@ -22,7 +22,7 @@ v1::Order create_order_from_signal(const T &signal,
   order.set_side(signal.side());
   order.set_quantity(signal.target_quantity());
   order.set_type(v1::OrderType::MARKET);
-  order.set_account_id(account_id);
+  order.set_account_id(std::string(account_id));
   order.set_created_at(get_current_time());
   order.set_time_in_force(v1::TimeInForce::DAY);
   order.set_strategy_id(signal.strategy_id());

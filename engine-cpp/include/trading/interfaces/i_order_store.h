@@ -3,6 +3,7 @@
 #include "order.pb.h"
 #include <optional>
 #include <trading/utils/result.h>
+#include <variant>
 #include <vector>
 
 namespace quarcc {
