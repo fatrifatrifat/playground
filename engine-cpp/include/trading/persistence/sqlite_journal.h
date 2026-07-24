@@ -17,7 +17,7 @@ public:
   void log(Event event, const std::string &data,
            const std::string &correlation_id = "") override;
 
-  std::vector<LogEntry>
+  Result<std::vector<LogEntry>>
   get_history(Timestamp from, Timestamp to,
               std::optional<Event> event_filter = std::nullopt) override;
 

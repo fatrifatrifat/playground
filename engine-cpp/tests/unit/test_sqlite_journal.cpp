@@ -19,12 +19,18 @@ TEST_F(JournalFixture, LogAndRetrieveSingleEntry) {
 
   auto from = LogEntry::now() - std::chrono::seconds{5};
   auto to = LogEntry::now() + std::chrono::seconds{5};
-  auto entries = journal.get_history(from, to);
+  const auto entries_result = journal.get_history(from, to);
 
-  ASSERT_EQ(entries.size(), 1u);
-  EXPECT_EQ(entries[0].event_type, Event::ORDER_CREATED);
-  EXPECT_EQ(entries[0].data, "test data");
-  EXPECT_EQ(entries[0].correlation_id, "ORDER_1");
+  if (entries_result) {
+    const auto entries = *entries_result;
+
+    ASSERT_EQ(entries.size(), 1u);
+    EXPECT_EQ(entries[0].event_type, Event::ORDER_CREATED);
+    EXPECT_EQ(entries[0].data, "test data");
+    EXPECT_EQ(entries[0].correlation_id, "ORDER_1");
+  } else {
+    FAIL();
+  }
 }
 
 TEST_F(JournalFixture, GetHistoryWithEventFilterReturnsOnlyMatchingEvents) {
@@ -34,10 +40,16 @@ TEST_F(JournalFixture, GetHistoryWithEventFilterReturnsOnlyMatchingEvents) {
 
   auto from = LogEntry::now() - std::chrono::seconds{5};
   auto to = LogEntry::now() + std::chrono::seconds{5};
-  auto entries = journal.get_history(from, to, Event::ORDER_SUBMITTED);
+  const auto entries_result = journal.get_history(from, to, Event::ORDER_SUBMITTED);
 
-  ASSERT_EQ(entries.size(), 1u);
-  EXPECT_EQ(entries[0].event_type, Event::ORDER_SUBMITTED);
+  if (entries_result) {
+    const auto entries = *entries_result;
+
+    ASSERT_EQ(entries.size(), 1u);
+    EXPECT_EQ(entries[0].event_type, Event::ORDER_SUBMITTED);
+  } else {
+    FAIL();
+  }
 }
 
 TEST_F(JournalFixture, GetOrderHistoryFiltersByCorrelationId) {
@@ -83,8 +95,14 @@ TEST_F(JournalFixture, LogWithoutCorrelationIdSucceeds) {
 
   auto from = LogEntry::now() - std::chrono::seconds{5};
   auto to = LogEntry::now() + std::chrono::seconds{5};
-  auto entries = journal.get_history(from, to);
-  EXPECT_FALSE(entries.empty());
+  const auto entries_result = journal.get_history(from, to);
+  if (entries_result) {
+    const auto entries = *entries_result;
+
+    EXPECT_FALSE(entries.empty());
+  } else {
+    FAIL();
+  }
 }
 
 } // namespace quarcc

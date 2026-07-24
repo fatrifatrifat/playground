@@ -6,6 +6,8 @@
 #include <string>
 #include <vector>
 
+#include <result.h>
+
 namespace quarcc {
 
 enum class Event : std::uint8_t {
@@ -122,7 +124,7 @@ public:
   virtual void log(Event event, const std::string &data,
                    const std::string &correlation_id = "") = 0;
 
-  virtual std::vector<LogEntry>
+  virtual Result<std::vector<LogEntry>>
   get_history(Timestamp from, Timestamp to,
               std::optional<Event> event_filter = std::nullopt) = 0;
 

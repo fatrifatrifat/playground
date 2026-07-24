@@ -49,9 +49,13 @@ TradingEngine::create_strategy(const StrategyConfig &strat) {
               "' uses gateway 'grpc_adapter' but has no 'adapter' config block",
           ErrorType::Error});
 
-    auto conn = adapter_manager_.get_or_create(
-        strat.adapter->venue, strat.account_id, *strat.adapter);
-    gateway = std::make_unique<GrpcGateway>(strat.id, conn);
+    try {
+      auto conn = adapter_manager_.get_or_create(
+          strat.adapter->venue, strat.account_id, *strat.adapter);
+      gateway = std::make_unique<GrpcGateway>(strat.id, conn);
+    } catch (std::runtime_error err) {
+      return std::unexpected { Error { err.what(), ErrorType::Error } };
+    }
 
   } else if (strat.gateway == "alpaca") {
 #if TRADING_ENABLE_ALPACA_SDK
@@ -83,10 +87,14 @@ TradingEngine::create_strategy(const StrategyConfig &strat) {
     if (strat.gateway == "grpc_adapter" && strat.adapter &&
         !feed_registry_.has_feed(feed_key)) {
       // Creates the adapter process for the current strategy's market data feed
-      auto conn = adapter_manager_.get_or_create(
-          strat.adapter->venue, strat.account_id, *strat.adapter);
-      feed_registry_.register_feed(
-          feed_key, std::make_unique<GrpcMarketDataFeed>(std::move(conn)));
+      try {
+        auto conn = adapter_manager_.get_or_create(
+            strat.adapter->venue, strat.account_id, *strat.adapter);
+        feed_registry_.register_feed(
+            feed_key, std::make_unique<GrpcMarketDataFeed>(std::move(conn)));
+      } catch (std::runtime_error err) {
+        return std::unexpected { Error { err.what(), ErrorType::Error } };
+      }
     } else if (strat.market_data && strat.market_data->feed == "simulated") {
       feed_registry_.register_feed(feed_key, std::make_unique<SimulatedFeed>());
     }
