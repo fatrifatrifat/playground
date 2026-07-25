@@ -30,8 +30,7 @@ void TradingEngine::Run(const char *config_path) {
 }
 
 // Creates one OrderManager + registers its feeds
-// Called by process_config (single threaded, before the server starts) and by
-// RegisterStrategy (under a unique_lock on managers_mu_)
+// Called by RegisterStrategy (under a unique_lock on managers_mu_)
 Result<std::monostate>
 TradingEngine::create_strategy(const StrategyConfig &strat) {
   // If the client already exists (e.g. it disconnected and reconnected), no

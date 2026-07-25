@@ -17,9 +17,6 @@ struct AdapterConfig;
 // It creates one AdapterProcess per <venue, account_id> pair, so multiple
 // strategies that share that same pair get the same AdapterConnection via
 // get_or_create()
-//
-// Used statically during the start up of the engine, in the
-// TradingEngine::process_config() function
 class AdapterManager {
 public:
   ~AdapterManager();

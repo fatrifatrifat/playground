@@ -41,14 +41,11 @@ sys.path.insert(0, os.path.dirname(_HERE))  # for gen.python.contracts
 import grpc_interface
 
 # Defaults (used when config.yaml has no `test` section for a strategy)
-DEFAULT_CONFIG = os.path.join(_HERE, "config.yaml")
 DEFAULT_SERVER = "localhost:50051"
 DEFAULT_ORDERS = [
     {"side": "BUY",  "qty": 2.0},
     {"side": "SELL", "qty": 1.5},
 ]
-DEFAULT_ITERATIONS = 30
-DEFAULT_WAIT = 3.0
 
 # Lock so parallel strategy output lines don't interleave mid-line.
 _PRINT_LOCK = threading.Lock()
@@ -57,70 +54,29 @@ def _print(*args_, **kwargs):
     with _PRINT_LOCK:
         print(*args_, **kwargs)
 
-
-# Config helpers
-def load_config(path: str) -> dict:
-    with open(path) as f:
-        return yaml.safe_load(f)
-
-
-def resolve_strategy(config: dict, identifier: str) -> dict | None:
-    """Resolve by exact ID string or 1-based numeric index."""
-    strategies = config.get("strategies", [])
-    for s in strategies:
-        if s["id"] == identifier:
-            return s
-    try:
-        idx = int(identifier) - 1
-        if 0 <= idx < len(strategies):
-            return strategies[idx]
-    except ValueError:
-        pass
-    return None
-
-
 # Core run logic
 def run_strategy(
     client: grpc_interface.ExecutionClient,
-    strategy: dict,
+    strategy: str,
     *,
-    iterations: int | None = None,
-    wait: float | None = None,
-    flatten: bool | None = None,
     verbose: bool = False,
 ) -> None:
     if verbose:
         logging.getLogger("grpc_interface").setLevel(logging.INFO)
 
-    strat_id  = strategy["id"]
-    test      = strategy.get("test", {})
-    symbol    = test.get("symbol", "ACDC")
-    n_iters   = iterations if iterations is not None else test.get("iterations",  DEFAULT_ITERATIONS)
-    wait_secs = wait       if wait       is not None else test.get("wait_secs",   DEFAULT_WAIT)
-    orders    = test.get("orders", DEFAULT_ORDERS)
-    do_flatten = flatten if flatten is not None else test.get("flatten", True)
+    strat_id  = strategy + '_id'
+    symbol    = "ACDC"
+    orders    = DEFAULT_ORDERS
 
-    _print(f"[{strat_id}] {symbol}  {n_iters} iters × {len(orders)} orders")
+    _print(f"[{strat_id}] {symbol} for {len(orders)} orders")
 
     t0 = time.perf_counter()
-    for _ in range(n_iters):
+    for _ in range(20):
         for o in orders:
             client.submit_signal(strat_id, symbol, o["side"], float(o["qty"]))
     elapsed = time.perf_counter() - t0
 
-    _print(f"[{strat_id}] submitted {n_iters * len(orders)} signals in {elapsed:.3f}s")
-
-    if do_flatten:
-        _print(f"[{strat_id}] waiting {wait_secs}s for fills…")
-        time.sleep(wait_secs)
-
-        pos = client.get_position(symbol)
-        if pos and pos["quantity"] != 0.0:
-            qty  = pos["quantity"]
-            side = "SELL" if qty > 0 else "BUY"
-            _print(f"[{strat_id}] flattening: {side} {abs(qty):.4f} {symbol}")
-            client.submit_signal(strat_id, symbol, side, abs(qty))
-            time.sleep(wait_secs)
+    _print(f"[{strat_id}] submitted {20 * len(orders)} signals in {elapsed:.3f}s")
 
     pos = client.get_position(symbol)
     if pos:
@@ -133,53 +89,28 @@ def run_strategy(
         )
 
 
-# Sub-commands
-def cmd_run(args) -> None:
-    config   = load_config(args.config)
-    strategy = resolve_strategy(config, args.strategy)
-    if strategy is None:
-        _die(f"strategy '{args.strategy}' not found in {args.config}")
-
-    _check_server(args.server)
-    client = grpc_interface.ExecutionClient(args.server)
-    try:
-        run_strategy(
-            client, strategy,
-            iterations=args.iterations,
-            wait=args.wait,
-            flatten=None if not args.no_flatten else False,
-            verbose=args.verbose,
-        )
-    finally:
-        client.close()
-
-
 def cmd_run_all(args) -> None:
-    config     = load_config(args.config)
-    strategies = config.get("strategies", [])
-    if not strategies:
-        _die(f"no strategies in {args.config}")
+    if not args.strategies:
+        _die(f"no strategies defined")
 
+    strategies = args.strategies
+    
     _check_server(args.server)
-    flatten = None if not args.no_flatten else False
 
     if args.parallel:
         errors: list[str] = []
         err_lock = threading.Lock()
 
-        def _run_one(strat: dict) -> None:
+        def _run_one(strat: str) -> None:
             c = grpc_interface.ExecutionClient(args.server)
             try:
                 run_strategy(
                     c, strat,
-                    iterations=args.iterations,
-                    wait=args.wait,
-                    flatten=flatten,
                     verbose=args.verbose,
                 )
             except Exception as exc:  # noqa: BLE001
                 with err_lock:
-                    errors.append(f"[{strat['id']}] {exc}")
+                    errors.append(f"[{strat}] {exc}")
             finally:
                 c.close()
 
@@ -202,56 +133,10 @@ def cmd_run_all(args) -> None:
             for strat in strategies:
                 run_strategy(
                     client, strat,
-                    iterations=args.iterations,
-                    wait=args.wait,
-                    flatten=flatten,
                     verbose=args.verbose,
                 )
         finally:
             client.close()
-
-
-def cmd_positions(args) -> None:
-    _check_server(args.server)
-    client = grpc_interface.ExecutionClient(args.server)
-    try:
-        positions = client.get_all_positions()
-        if not positions:
-            print("No open positions.")
-            return
-        hdr = f"{'SYMBOL':<10} {'QTY':>12} {'AVG PRICE':>12} {'rPnL':>12}"
-        print(hdr)
-        print("-" * len(hdr))
-        for p in sorted(positions, key=lambda x: x["symbol"]):
-            sign = "+" if p["realized_pnl"] >= 0 else ""
-            print(
-                f"{p['symbol']:<10} {p['quantity']:>+12.4f}"
-                f" {p['avg_price']:>12.4f}"
-                f" {sign}{p['realized_pnl']:>11.4f}"
-            )
-    finally:
-        client.close()
-
-
-def cmd_kill(args) -> None:
-    _check_server(args.server)
-    client = grpc_interface.ExecutionClient(args.server)
-    try:
-        client.activate_kill_switch(args.reason, args.initiated_by)
-        print(f"Kill switch sent: {args.reason}")
-    finally:
-        client.close()
-
-
-def cmd_gen_config(args) -> None:
-    """Print a (possibly gateway-patched) config.yaml to stdout."""
-    config = load_config(args.config)
-    if args.gateway:
-        for strat in config.get("strategies", []):
-            strat["gateway"] = args.gateway
-    # Use sort_keys=False to preserve insertion order (Python 3.7+).
-    print(yaml.dump(config, default_flow_style=False, sort_keys=False, allow_unicode=True), end="")
-
 
 # Helpers
 def _check_server(address: str) -> None:
@@ -271,20 +156,6 @@ def _die(msg: str) -> None:
     print(f"error: {msg}", file=sys.stderr)
     sys.exit(1)
 
-
-# Argument parser
-def _add_run_args(p: argparse.ArgumentParser) -> None:
-    """Shared flags for 'run' and 'run-all'."""
-    p.add_argument("--iterations", type=int,   default=None, metavar="N",
-                   help="number of signal cycles (overrides config test.iterations)")
-    p.add_argument("--wait",       type=float, default=None, metavar="SECS",
-                   help="seconds to wait for fills before flatten (overrides config test.wait_secs)")
-    p.add_argument("--no-flatten", action="store_true",
-                   help="skip the end-of-run position flatten")
-    p.add_argument("--verbose",    action="store_true",
-                   help="show per-signal gRPC logs")
-
-
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="client.py",
@@ -292,46 +163,20 @@ def build_parser() -> argparse.ArgumentParser:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__,
     )
-    p.add_argument("--config", default=DEFAULT_CONFIG, metavar="PATH",
-                   help=f"config.yaml path (default: {DEFAULT_CONFIG})")
     p.add_argument("--server", default=DEFAULT_SERVER, metavar="HOST:PORT",
                    help=f"gRPC address (default: {DEFAULT_SERVER})")
 
     sub = p.add_subparsers(dest="cmd", required=True)
 
     # run
-    pr = sub.add_parser("run", help="run test scenario for one strategy")
-    pr.add_argument("strategy",
-                    help="name or 1-based index (e.g. '1' or 'simple_test_strategy_1')")
-    _add_run_args(pr)
-    pr.set_defaults(func=cmd_run)
-
-    # run-all
-    pa = sub.add_parser("run-all", help="run all configured strategy scenarios")
-    pa.add_argument("--parallel", action="store_true",
+    pr = sub.add_parser("run", help="run test scenario for one or more strategies")
+    pr.add_argument("strategies", nargs='+',
+                    help="*.py strategy file(s)")
+    pr.add_argument("--parallel", action="store_true",
                     help="run all strategies concurrently")
-    _add_run_args(pa)
-    pa.set_defaults(func=cmd_run_all)
-
-    # positions
-    pp = sub.add_parser("positions", help="print current positions from the engine")
-    pp.set_defaults(func=cmd_positions)
-
-    # kill
-    pk = sub.add_parser("kill", help="activate the engine kill switch")
-    pk.add_argument("--reason", default="manual stop", help="reason (default: 'manual stop')")
-    pk.add_argument("--by",     default="dev",         dest="initiated_by",
-                    help="who triggered it (default: dev)")
-    pk.set_defaults(func=cmd_kill)
-
-    # gen-config
-    pg = sub.add_parser(
-        "gen-config",
-        help="print config.yaml (with optional gateway override) — pipe output to the engine",
-    )
-    pg.add_argument("--gateway", choices=["paper trading", "alpaca"],
-                    help="override gateway for every strategy")
-    pg.set_defaults(func=cmd_gen_config)
+    pr.add_argument("--verbose",    action="store_true",
+                   help="show per-signal gRPC logs")
+    pr.set_defaults(func=cmd_run_all)
 
     return p
 

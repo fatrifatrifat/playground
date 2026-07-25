@@ -25,11 +25,8 @@ public:
   void Run(const char *config_path);
 
 private:
-  void process_config(const std::string &path);
-
   // Creates an OrderManager + registers feeds for one strategy
-  // Caller must NOT hold managers_mu_ (process_config calls this before the
-  // server starts RegisterStrategy calls this under a unique_lock)
+  // RegisterStrategy calls this under a unique_lock)
   Result<std::monostate> create_strategy(const StrategyConfig &strat);
 
 private:
