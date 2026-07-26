@@ -10,6 +10,7 @@
 
 namespace quarcc {
 
+  // SQLiteJournal possibly throws on construction
 struct JournalFixture : public testing::Test {
   SQLiteJournal journal{":memory:"};
 };

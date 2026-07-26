@@ -72,14 +72,17 @@ TradingEngine::create_strategy(const StrategyConfig &strat) {
         Error{"Invalid gateway: " + strat.gateway, ErrorType::Error});
   }
 
-  managers_.emplace(StrategyId{strat.id},
-                    OrderManager::create_order_manager(
-                        strat.account_id, std::make_unique<PositionKeeper>(),
-                        std::move(gateway),
-                        std::make_unique<SQLiteJournal>(strat.id),
-                        std::make_unique<SQLiteOrderStore>(strat.id),
-                        std::make_unique<RiskManager>(RiskLimits{})));
-
+  try {
+    managers_.emplace(StrategyId{strat.id},
+                      OrderManager::create_order_manager(
+                          strat.account_id, std::make_unique<PositionKeeper>(),
+                          std::move(gateway),
+                          std::make_unique<SQLiteJournal>(strat.id),
+                          std::make_unique<SQLiteOrderStore>(strat.id),
+                          std::make_unique<RiskManager>(RiskLimits{})));
+  } catch (...) {
+    return std::unexpected { Error { "Error creating new order manager", ErrorType::Error} };
+  }
   if (strat.market_data) {
     OrderManager *om = managers_.at(strat.id).get();
     const FeedKey feed_key{strat.market_data->feed, strat.account_id};
@@ -99,9 +102,13 @@ TradingEngine::create_strategy(const StrategyConfig &strat) {
       feed_registry_.register_feed(feed_key, std::make_unique<SimulatedFeed>());
     }
 
-    for (const auto &sub : strat.market_data->subscriptions)
-      feed_registry_.register_subscription(feed_key, sub.symbol, sub.period,
-                                           om);
+    for (const auto &sub : strat.market_data->subscriptions) {
+      try {
+        feed_registry_.register_subscription(feed_key, sub.symbol, sub.period, om);
+      } catch (...) {
+        return std::unexpected { Error { "Error registering a subscription: " + sub.symbol, ErrorType::Error} };
+      }
+    }
   }
 
   return std::monostate{};
