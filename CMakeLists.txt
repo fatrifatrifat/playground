@@ -23,7 +23,7 @@ if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     set(CMAKE_BUILD_TYPE RelWithDebInfo CACHE STRING "Build type" FORCE)
 endif()
 
-option(TRADING_ENABLE_ALPACA_SDK "Enable Alpaca SDK integration" ON)
+option(TRADING_ENABLE_ALPACA_SDK "Enable Alpaca SDK integration" OFF)
 option(TRADING_BUILD_TESTS       "Build unit tests (Google Test + Google Mock)" ON)
 
 if(TRADING_ENABLE_ALPACA_SDK)
