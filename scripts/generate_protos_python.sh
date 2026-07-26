@@ -13,7 +13,7 @@ PYTHON_OUT="gen/python/contracts"
 mkdir -p "$PYTHON_OUT"
 
 # Generate
-python -m grpc_tools.protoc \
+python3 -m grpc_tools.protoc \
   --proto_path="$PROTO_DIR" \
   --python_out="$PYTHON_OUT" \
   --grpc_python_out="$PYTHON_OUT" \

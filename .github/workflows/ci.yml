@@ -48,5 +48,14 @@ jobs:
       - name: Build
         run: cmake --build build -j
 
-      - name: Test
+      - name: Unit tests
         run: ./build/engine-cpp/tests/trading_tests
+
+      - name: Install Python deps
+        run: pip install -r python_client/requirements.txt
+
+      - name: Generate Protobuf Files
+        run: bash ./scripts/generate_protos_python.sh
+
+      - name: E2E smoke test
+        run: pytest tests/integration/ -v

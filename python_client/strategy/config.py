@@ -20,7 +20,7 @@ class MarketData:
     class Feed(StrEnum):
         SIMULATED = "simulated"
         ALPACA = "alpaca"
-        IBKR = "ibkr"
+        # IBKR = "ibkr"
 
     feed: Feed
     subscriptions: list[Subscription] = field(default_factory=list)
