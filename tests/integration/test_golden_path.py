@@ -34,8 +34,6 @@ def test_golden_path(engine_proc):
             self._order_placed = False
 
         def on_tick(self, tick):
-            # Only mark placed once the engine accepts it — if the paper gateway
-            # rejects (3% chance), _order_placed stays False and we retry next tick.
             if not self._order_placed:
                 order_id = self.buy(tick.symbol, qty=1.0)
                 if order_id is not None:
