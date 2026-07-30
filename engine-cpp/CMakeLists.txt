@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.24)
 find_package(Threads  REQUIRED)
 find_package(SQLite3  REQUIRED)
 find_package(yaml-cpp REQUIRED)
+find_package(spdlog   REQUIRED)
 
 add_library(trading_interfaces INTERFACE)
 add_library(trading::interfaces ALIAS trading_interfaces)
@@ -19,14 +20,13 @@ file(GLOB_RECURSE TRADING_PUBLIC_HEADERS CONFIGURE_DEPENDS
     ${CMAKE_CURRENT_SOURCE_DIR}/include/trading/*.h
     ${CMAKE_CURRENT_SOURCE_DIR}/include/trading/*.hpp
 )
-
 target_sources(trading_interfaces INTERFACE
     FILE_SET HEADERS
     BASE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/include
     FILES ${TRADING_PUBLIC_HEADERS}
 )
 
-target_link_libraries(trading_interfaces INTERFACE trading_contracts yaml-cpp::yaml-cpp)
+target_link_libraries(trading_interfaces INTERFACE trading_contracts yaml-cpp::yaml-cpp spdlog::spdlog)
 
 if(TRADING_ENABLE_ALPACA_SDK)
     if(NOT TARGET alpaca::alpaca_sdk)

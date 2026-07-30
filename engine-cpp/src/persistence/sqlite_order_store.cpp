@@ -1,14 +1,15 @@
+#include <spdlog/spdlog.h>
+#include <trading/persistence/sqlite_order_store.h>
+
 #include <format>
 #include <iostream>
 #include <stdexcept>
-#include <trading/persistence/sqlite_order_store.h>
 
 namespace quarcc {
 
-SQLiteOrderStore::SQLiteOrderStore(const std::string &db_path) {
-  std::string full_path = (db_path == ":memory:")
-                              ? db_path
-                              : std::format("{}_order_store.db", db_path);
+SQLiteOrderStore::SQLiteOrderStore(const std::string& db_path) {
+  std::string full_path =
+      (db_path == ":memory:") ? db_path : std::format("{}_order_store.db", db_path);
   int rc = sqlite3_open(full_path.c_str(), &db_);
   if (rc != SQLITE_OK) [[unlikely]] {
     std::string error = sqlite3_errmsg(db_);
@@ -18,7 +19,7 @@ SQLiteOrderStore::SQLiteOrderStore(const std::string &db_path) {
   sqlite3_exec(db_, "PRAGMA journal_mode=WAL;", nullptr, nullptr, nullptr);
   sqlite3_exec(db_, "PRAGMA synchronous=NORMAL;", nullptr, nullptr, nullptr);
   sqlite3_exec(db_, "PRAGMA cache_size=-8000;", nullptr, nullptr,
-               nullptr); // 8MB cache
+               nullptr);  // 8MB cache
 
   create_schema();
 }
@@ -30,7 +31,7 @@ SQLiteOrderStore::~SQLiteOrderStore() {
 }
 
 void SQLiteOrderStore::create_schema() {
-  const char *sql = R"(
+  const char* sql = R"(
     CREATE TABLE IF NOT EXISTS orders (
       local_id TEXT PRIMARY KEY,
       broker_id TEXT UNIQUE,
@@ -56,7 +57,7 @@ void SQLiteOrderStore::create_schema() {
     CREATE INDEX IF NOT EXISTS idx_created_at ON orders(created_at);
   )";
 
-  char *err_msg = nullptr;
+  char* err_msg = nullptr;
   int rc = sqlite3_exec(db_, sql, nullptr, nullptr, &err_msg);
 
   if (rc != SQLITE_OK) [[unlikely]] {
@@ -66,11 +67,10 @@ void SQLiteOrderStore::create_schema() {
   }
 }
 
-Result<std::monostate>
-SQLiteOrderStore::store_order(const StoredOrder &stored_order) {
+Result<std::monostate> SQLiteOrderStore::store_order(const StoredOrder& stored_order) {
   std::lock_guard lock(mutex_);
 
-  const char *sql = R"(
+  const char* sql = R"(
     INSERT INTO orders (
       local_id, broker_id, symbol, side, quantity, price, 
       order_type, status, time_in_force, account_id, strategy_id,
@@ -78,24 +78,22 @@ SQLiteOrderStore::store_order(const StoredOrder &stored_order) {
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   )";
 
-  sqlite3_stmt *stmt = nullptr;
+  sqlite3_stmt* stmt = nullptr;
   int rc = sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr);
 
   if (rc != SQLITE_OK) [[unlikely]] {
-    return std::unexpected(Error{"Failed to prepare insert statement: " +
-                                     std::string(sqlite3_errmsg(db_)),
-                                 ErrorType::Error});
+    return std::unexpected(
+        Error{"Failed to prepare insert statement: " + std::string(sqlite3_errmsg(db_)),
+              ErrorType::Error});
   }
 
-  const auto &order = stored_order.order;
+  const auto& order = stored_order.order;
 
   // Bind values
-  sqlite3_bind_text(stmt, 1, stored_order.local_id.c_str(), -1,
-                    SQLITE_TRANSIENT);
+  sqlite3_bind_text(stmt, 1, stored_order.local_id.c_str(), -1, SQLITE_TRANSIENT);
 
   if (stored_order.broker_id) {
-    sqlite3_bind_text(stmt, 2, stored_order.broker_id->c_str(), -1,
-                      SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 2, stored_order.broker_id->c_str(), -1, SQLITE_TRANSIENT);
   } else {
     sqlite3_bind_null(stmt, 2);
   }
@@ -108,49 +106,43 @@ SQLiteOrderStore::store_order(const StoredOrder &stored_order) {
   sqlite3_bind_int(stmt, 8, static_cast<int>(stored_order.status));
   sqlite3_bind_int(stmt, 9, static_cast<int>(order.time_in_force()));
   sqlite3_bind_text(stmt, 10, order.account_id().c_str(), -1, SQLITE_TRANSIENT);
-  sqlite3_bind_text(stmt, 11, order.strategy_id().c_str(), -1,
-                    SQLITE_TRANSIENT);
-  sqlite3_bind_text(stmt, 12, stored_order.created_at.c_str(), -1,
-                    SQLITE_TRANSIENT);
+  sqlite3_bind_text(stmt, 11, order.strategy_id().c_str(), -1, SQLITE_TRANSIENT);
+  sqlite3_bind_text(stmt, 12, stored_order.created_at.c_str(), -1, SQLITE_TRANSIENT);
   sqlite3_bind_double(stmt, 13, stored_order.filled_quantity);
   sqlite3_bind_double(stmt, 14, stored_order.avg_fill_price);
 
   std::string serialized;
   [[maybe_unused]] const bool success = order.SerializeToString(&serialized);
-  sqlite3_bind_blob(stmt, 15, serialized.data(), serialized.size(),
-                    SQLITE_TRANSIENT);
+  sqlite3_bind_blob(stmt, 15, serialized.data(), serialized.size(), SQLITE_TRANSIENT);
 
   rc = sqlite3_step(stmt);
   sqlite3_finalize(stmt);
 
   if (rc != SQLITE_DONE) [[unlikely]] {
     return std::unexpected(
-        Error{"Failed to insert order: " + std::string(sqlite3_errmsg(db_)),
-              ErrorType::Error});
+        Error{"Failed to insert order: " + std::string(sqlite3_errmsg(db_)), ErrorType::Error});
   }
 
   return std::monostate{};
 }
 
-Result<std::monostate>
-SQLiteOrderStore::update_order_status(const std::string &local_id,
-                                      OrderStatus new_status) {
-
+Result<std::monostate> SQLiteOrderStore::update_order_status(const std::string& local_id,
+                                                             OrderStatus new_status) {
   std::lock_guard lock(mutex_);
 
-  const char *sql = R"(
+  const char* sql = R"(
     UPDATE orders 
     SET status = ?, updated_at = datetime('now')
     WHERE local_id = ?
   )";
 
-  sqlite3_stmt *stmt = nullptr;
+  sqlite3_stmt* stmt = nullptr;
   int rc = sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr);
 
   if (rc != SQLITE_OK) [[unlikely]] {
-    return std::unexpected(Error{"Failed to prepare update statement: " +
-                                     std::string(sqlite3_errmsg(db_)),
-                                 ErrorType::Error});
+    return std::unexpected(
+        Error{"Failed to prepare update statement: " + std::string(sqlite3_errmsg(db_)),
+              ErrorType::Error});
   }
 
   sqlite3_bind_int(stmt, 1, static_cast<int>(new_status));
@@ -160,33 +152,30 @@ SQLiteOrderStore::update_order_status(const std::string &local_id,
   sqlite3_finalize(stmt);
 
   if (rc != SQLITE_DONE) [[unlikely]] {
-    return std::unexpected(Error{"Failed to update order status: " +
-                                     std::string(sqlite3_errmsg(db_)),
-                                 ErrorType::Error});
+    return std::unexpected(Error{
+        "Failed to update order status: " + std::string(sqlite3_errmsg(db_)), ErrorType::Error});
   }
 
   return std::monostate{};
 }
 
-Result<std::monostate>
-SQLiteOrderStore::update_broker_id(const std::string &local_id,
-                                   const std::string &broker_id) {
-
+Result<std::monostate> SQLiteOrderStore::update_broker_id(const std::string& local_id,
+                                                          const std::string& broker_id) {
   std::lock_guard lock(mutex_);
 
-  const char *sql = R"(
+  const char* sql = R"(
     UPDATE orders 
     SET broker_id = ?, updated_at = datetime('now')
     WHERE local_id = ?
   )";
 
-  sqlite3_stmt *stmt = nullptr;
+  sqlite3_stmt* stmt = nullptr;
   int rc = sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr);
 
   if (rc != SQLITE_OK) [[unlikely]] {
-    return std::unexpected(Error{"Failed to prepare update statement: " +
-                                     std::string(sqlite3_errmsg(db_)),
-                                 ErrorType::Error});
+    return std::unexpected(
+        Error{"Failed to prepare update statement: " + std::string(sqlite3_errmsg(db_)),
+              ErrorType::Error});
   }
 
   sqlite3_bind_text(stmt, 1, broker_id.c_str(), -1, SQLITE_TRANSIENT);
@@ -197,20 +186,18 @@ SQLiteOrderStore::update_broker_id(const std::string &local_id,
 
   if (rc != SQLITE_DONE) [[unlikely]] {
     return std::unexpected(
-        Error{"Failed to update broker ID: " + std::string(sqlite3_errmsg(db_)),
-              ErrorType::Error});
+        Error{"Failed to update broker ID: " + std::string(sqlite3_errmsg(db_)), ErrorType::Error});
   }
 
   return std::monostate{};
 }
 
-Result<std::monostate> SQLiteOrderStore::apply_fill(const std::string &local_id,
-                                                    double filled_quantity,
-                                                    double avg_price,
+Result<std::monostate> SQLiteOrderStore::apply_fill(const std::string& local_id,
+                                                    double filled_quantity, double avg_price,
                                                     OrderStatus new_status) {
   std::lock_guard lock(mutex_);
 
-  const char *sql = R"(
+  const char* sql = R"(
     UPDATE orders
     SET
       avg_fill_price =
@@ -225,12 +212,12 @@ Result<std::monostate> SQLiteOrderStore::apply_fill(const std::string &local_id,
     WHERE local_id = ?
   )";
 
-  sqlite3_stmt *stmt = nullptr;
+  sqlite3_stmt* stmt = nullptr;
   int rc = sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr);
   if (rc != SQLITE_OK) [[unlikely]] {
-    return std::unexpected(Error{"Failed to prepare apply_fill statement: " +
-                                     std::string(sqlite3_errmsg(db_)),
-                                 ErrorType::Error});
+    return std::unexpected(
+        Error{"Failed to prepare apply_fill statement: " + std::string(sqlite3_errmsg(db_)),
+              ErrorType::Error});
   }
 
   sqlite3_bind_double(stmt, 1, avg_price);
@@ -246,31 +233,26 @@ Result<std::monostate> SQLiteOrderStore::apply_fill(const std::string &local_id,
 
   if (rc != SQLITE_DONE) [[unlikely]] {
     return std::unexpected(
-        Error{"Failed to apply fill: " + std::string(sqlite3_errmsg(db_)),
-              ErrorType::Error});
+        Error{"Failed to apply fill: " + std::string(sqlite3_errmsg(db_)), ErrorType::Error});
   }
 
   return std::monostate{};
 }
 
-StoredOrder SQLiteOrderStore::parse_order(sqlite3_stmt *stmt) {
+StoredOrder SQLiteOrderStore::parse_order(sqlite3_stmt* stmt) {
   StoredOrder stored;
 
-  stored.local_id =
-      reinterpret_cast<const char *>(sqlite3_column_text(stmt, 0));
+  stored.local_id = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
 
-  const char *broker_id =
-      reinterpret_cast<const char *>(sqlite3_column_text(stmt, 1));
+  const char* broker_id = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
   if (broker_id) {
     stored.broker_id = broker_id;
   }
 
   stored.status = static_cast<OrderStatus>(sqlite3_column_int(stmt, 2));
-  stored.created_at =
-      reinterpret_cast<const char *>(sqlite3_column_text(stmt, 3));
+  stored.created_at = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 3));
 
-  const char *updated_at =
-      reinterpret_cast<const char *>(sqlite3_column_text(stmt, 4));
+  const char* updated_at = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 4));
   if (updated_at) {
     stored.updated_at = updated_at;
   }
@@ -278,30 +260,30 @@ StoredOrder SQLiteOrderStore::parse_order(sqlite3_stmt *stmt) {
   stored.filled_quantity = sqlite3_column_double(stmt, 5);
   stored.avg_fill_price = sqlite3_column_double(stmt, 6);
 
-  const void *blob = sqlite3_column_blob(stmt, 7);
+  const void* blob = sqlite3_column_blob(stmt, 7);
   int size = sqlite3_column_bytes(stmt, 7);
   [[maybe_unused]] const bool success = stored.order.ParseFromArray(blob, size);
 
   return stored;
 }
 
-Result<StoredOrder> SQLiteOrderStore::get_order(const std::string &local_id) {
+Result<StoredOrder> SQLiteOrderStore::get_order(const std::string& local_id) {
   std::lock_guard lock(mutex_);
 
-  const char *sql = R"(
+  const char* sql = R"(
     SELECT local_id, broker_id, status, created_at, updated_at, 
            filled_quantity, avg_fill_price, order_proto
     FROM orders 
     WHERE local_id = ?
   )";
 
-  sqlite3_stmt *stmt = nullptr;
+  sqlite3_stmt* stmt = nullptr;
   int rc = sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr);
 
   if (rc != SQLITE_OK) [[unlikely]] {
-    return std::unexpected(Error{"Failed to prepare select statement: " +
-                                     std::string(sqlite3_errmsg(db_)),
-                                 ErrorType::Error});
+    return std::unexpected(
+        Error{"Failed to prepare select statement: " + std::string(sqlite3_errmsg(db_)),
+              ErrorType::Error});
   }
 
   sqlite3_bind_text(stmt, 1, local_id.c_str(), -1, SQLITE_TRANSIENT);
@@ -315,15 +297,14 @@ Result<StoredOrder> SQLiteOrderStore::get_order(const std::string &local_id) {
   }
 
   sqlite3_finalize(stmt);
-  return std::unexpected(
-      Error{"Order not found: " + local_id, ErrorType::Error});
+  return std::unexpected(Error{"Order not found: " + local_id, ErrorType::Error});
 }
 
 std::vector<StoredOrder> SQLiteOrderStore::get_open_orders() {
   std::lock_guard lock(mutex_);
   std::vector<StoredOrder> orders;
 
-  const char *sql = R"(
+  const char* sql = R"(
     SELECT local_id, broker_id, status, created_at, updated_at,
            filled_quantity, avg_fill_price, order_proto
     FROM orders 
@@ -331,12 +312,11 @@ std::vector<StoredOrder> SQLiteOrderStore::get_open_orders() {
     ORDER BY created_at ASC
   )";
 
-  sqlite3_stmt *stmt = nullptr;
+  sqlite3_stmt* stmt = nullptr;
   int rc = sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr);
 
   if (rc != SQLITE_OK) [[unlikely]] {
-    std::cerr << "Failed to prepare query: " << sqlite3_errmsg(db_)
-              << std::endl;
+    spdlog::error("Failed to prepare query: {}", sqlite3_errmsg(db_));
     return orders;
   }
 
@@ -353,12 +333,11 @@ std::vector<StoredOrder> SQLiteOrderStore::get_open_orders() {
   return orders;
 }
 
-std::vector<StoredOrder>
-SQLiteOrderStore::get_orders_by_status(OrderStatus status) {
+std::vector<StoredOrder> SQLiteOrderStore::get_orders_by_status(OrderStatus status) {
   std::lock_guard lock(mutex_);
   std::vector<StoredOrder> orders;
 
-  const char *sql = R"(
+  const char* sql = R"(
     SELECT local_id, broker_id, status, created_at, updated_at,
            filled_quantity, avg_fill_price, order_proto
     FROM orders 
@@ -366,12 +345,11 @@ SQLiteOrderStore::get_orders_by_status(OrderStatus status) {
     ORDER BY created_at ASC
   )";
 
-  sqlite3_stmt *stmt = nullptr;
+  sqlite3_stmt* stmt = nullptr;
   int rc = sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr);
 
   if (rc != SQLITE_OK) [[unlikely]] {
-    std::cerr << "Failed to prepare query: " << sqlite3_errmsg(db_)
-              << std::endl;
+    spdlog::error("Failed to prepare query: {}", sqlite3_errmsg(db_));
     return orders;
   }
 
@@ -385,4 +363,4 @@ SQLiteOrderStore::get_orders_by_status(OrderStatus status) {
   return orders;
 }
 
-} // namespace quarcc
+}  // namespace quarcc
