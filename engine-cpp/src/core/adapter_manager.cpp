@@ -1,6 +1,8 @@
 #include <trading/core/adapter_manager.h>
 #include <trading/utils/config.h>
 
+#include <spdlog/spdlog.h>
+
 #include <csignal>
 #include <cstring>
 #include <format>
@@ -61,7 +63,7 @@ void AdapterManager::spawn(AdapterProcess &proc, const AdapterConfig &cfg) {
 
     execvp("python3", const_cast<char *const *>(argv.data()));
     // Only reached on error.
-    std::cerr << "[adapter] execvp failed: " << strerror(errno) << "\n";
+    spdlog::error("[adapter] execvp failed: {}", strerror(errno));
     _exit(1);
   }
 
