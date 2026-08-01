@@ -1,3 +1,4 @@
+#include <spdlog/spdlog.h>
 #include <trading/core/trading_engine.h>
 #include <trading/gateways/grpc_gateway.h>
 #include <trading/gateways/grpc_market_data_feed.h>
@@ -41,7 +42,7 @@ TradingEngine::create_strategy(const v1::RegisterStrategyRequest &strat) {
 
   std::unique_ptr<IExecutionGateway> gateway;
 
-  if (strat.gateway() == v1::Gateway::GrpcAdapter) {
+  if (strat.gateway() == v1::Gateway::GrpcAdapterGW) {
     if (!strat.has_adapter())
       return std::unexpected(Error{
           "Strategy '" + strat.strategy_id() +
@@ -52,7 +53,7 @@ TradingEngine::create_strategy(const v1::RegisterStrategyRequest &strat) {
         strat.adapter().venue(), strat.account_id(), strat.adapter());
     gateway = std::make_unique<GrpcGateway>(strat.strategy_id(), conn);
 
-  } else if (strat.gateway() == v1::Gateway::Alpaca) {
+  } else if (strat.gateway() == v1::Gateway::AlpacaGW) {
 #if TRADING_ENABLE_ALPACA_SDK
     gateway = std::make_unique<AlpacaGateway>();
 #else
@@ -60,12 +61,12 @@ TradingEngine::create_strategy(const v1::RegisterStrategyRequest &strat) {
         Error{"Alpaca gateway not compiled in (TRADING_ENABLE_ALPACA_SDK=OFF)",
               ErrorType::Error});
 #endif
-  } else if (strat.gateway() == v1::Gateway::PaperTrading) {
+  } else if (strat.gateway() == v1::Gateway::PaperTradingGW) {
     gateway = std::make_unique<PaperGateway>();
   } else {
-    return std::unexpected(
-        Error{"Invalid gateway: " + std::to_string(static_cast<int>(strat.gateway())),
-              ErrorType::Error});
+    return std::unexpected(Error{
+        "Invalid gateway: " + std::to_string(static_cast<int>(strat.gateway())),
+        ErrorType::Error});
   }
 
   managers_.emplace(StrategyId{strat.strategy_id()},
@@ -80,16 +81,28 @@ TradingEngine::create_strategy(const v1::RegisterStrategyRequest &strat) {
     OrderManager *om = managers_.at(strat.strategy_id()).get();
     const FeedKey feed_key{strat.market_data().feed(), strat.account_id()};
 
-    if (strat.gateway() == v1::Gateway::GrpcAdapter && strat.has_adapter() &&
-        !feed_registry_.has_feed(feed_key)) {
-      // Creates the adapter process for the current strategy's market data feed
-      auto conn = adapter_manager_.get_or_create(
-          strat.adapter().venue(), strat.account_id(), strat.adapter());
-      feed_registry_.register_feed(
-          feed_key, std::make_unique<GrpcMarketDataFeed>(std::move(conn)));
-    } else if (strat.has_market_data() &&
-               strat.market_data().feed() == v1::Feed::Simulated) {
-      feed_registry_.register_feed(feed_key, std::make_unique<SimulatedFeed>());
+    if (!feed_registry_.has_feed(feed_key)) {
+      switch (strat.market_data().feed()) {
+      case v1::Feed::SimulatedFeed:
+        feed_registry_.register_feed(feed_key,
+                                     std::make_unique<SimulatedFeed>());
+        break;
+      case v1::Feed::AdapterFeed:
+        if (!strat.has_adapter())
+          return std::unexpected(
+              Error{"Feed 'Adapter' requires an 'adapter' config block",
+                    ErrorType::Error});
+        feed_registry_.register_feed(
+            feed_key,
+            std::make_unique<GrpcMarketDataFeed>(adapter_manager_.get_or_create(
+                strat.adapter().venue(), strat.account_id(), strat.adapter())));
+        break;
+      default:
+        return std::unexpected(Error{
+            "Unsupported market data feed: " +
+                std::to_string(static_cast<int>(strat.market_data().feed())),
+            ErrorType::Error});
+      }
     }
 
     for (const auto &sub : strat.market_data().subscriptions())
