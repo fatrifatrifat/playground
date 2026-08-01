@@ -89,7 +89,7 @@ bool FeedRegistry::has_feed(const FeedKey &key) const {
 }
 
 std::unique_ptr<IMarketDataFeed> FeedRegistry::create_feed(const FeedKey &key) {
-  if (key.feed_type == FeedType::Simulated)
+  if (key.feed_type == FeedType::SimulatedFeed)
     return std::make_unique<SimulatedFeed>();
 
   // grpc_adapter feeds are pre registered so we don't create them here, so it

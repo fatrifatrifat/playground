@@ -87,8 +87,9 @@ message MarketDataSubscriptionMessage {
 }
 
 enum Feed {
-  Simulated = 0;
-  // Alpaca = 1;
+  SimulatedFeed = 0;
+  AlpacaFeed = 1;
+  AdapterFeed = 2;
   // ...
 }
 
@@ -104,9 +105,9 @@ message AdapterConfigMessage {
 }
 
 enum Gateway {
-  PaperTrading = 0;
-  GrpcAdapter = 1;
-  Alpaca = 2;
+  PaperTradingGW = 0;
+  GrpcAdapterGW = 1;
+  AlpacaGW = 2;
   // IBKR = 3;
   // ...
 }
