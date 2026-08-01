@@ -11,7 +11,7 @@
 namespace quarcc {
 
 using AccountId = std::string;
-using FeedType = std::string;
+using FeedType = v1::Feed;
 
 struct FeedKey {
   FeedType feed_type;

@@ -2,6 +2,8 @@
 
 #include <trading/gateways/adapter_connection.h>
 
+#include "execution_service.grpc.pb.h"
+
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -26,7 +28,7 @@ public:
   // Throws on error
   std::shared_ptr<AdapterConnection>
   get_or_create(const std::string &venue, const std::string &account_id,
-                const AdapterConfig &cfg);
+                const v1::AdapterConfigMessage &cfg);
 
   // Sends SIGTERM to all adapter processes and waits up to 5s per process
   // Sends SIGKILL to any that have yet been killed
@@ -50,7 +52,7 @@ private:
     }
   };
 
-  void spawn(AdapterProcess &proc, const AdapterConfig &cfg);
+  void spawn(AdapterProcess &proc, const v1::AdapterConfigMessage &cfg);
   static bool wait_for_ready(const AdapterConnection &conn,
                              std::chrono::seconds timeout);
 

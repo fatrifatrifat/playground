@@ -27,7 +27,8 @@ public:
 private:
   // Creates an OrderManager + registers feeds for one strategy
   // RegisterStrategy calls this under a unique_lock)
-  Result<std::monostate> create_strategy(const StrategyConfig &strat);
+  Result<std::monostate>
+  create_strategy(const v1::RegisterStrategyRequest &strat);
 
 private:
   // IExecutionServiceHandler functions
