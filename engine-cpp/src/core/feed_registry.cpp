@@ -75,7 +75,7 @@ void FeedRegistry::register_feed(FeedKey key,
     feeds_.at(key)->start();
 }
 
-void FeedRegistry::unregister_manager(OrderManager* manager) {
+void FeedRegistry::unregister_manager(OrderManager *manager) {
   std::unique_lock lk{feed_mu_};
   for (auto &[key, oms] : bar_subs_)
     oms.erase(std::remove(oms.begin(), oms.end(), manager), oms.end());
@@ -89,12 +89,13 @@ bool FeedRegistry::has_feed(const FeedKey &key) const {
 }
 
 std::unique_ptr<IMarketDataFeed> FeedRegistry::create_feed(const FeedKey &key) {
-  if (key.feed_type == "simulated")
+  if (key.feed_type == FeedType::Simulated)
     return std::make_unique<SimulatedFeed>();
 
   // grpc_adapter feeds are pre registered so we don't create them here, so it
   // shouldn't throw for them
-  throw std::runtime_error("Unknown feed type: " + key.feed_type);
+  throw std::runtime_error("Unknown feed type: " +
+                           std::to_string(static_cast<int>(key.feed_type)));
 }
 
 } // namespace quarcc

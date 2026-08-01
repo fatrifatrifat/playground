@@ -32,27 +32,27 @@ void TradingEngine::Run(const char *config_path) {
 // Creates one OrderManager + registers its feeds
 // Called by RegisterStrategy (under a unique_lock on managers_mu_)
 Result<std::monostate>
-TradingEngine::create_strategy(const StrategyConfig &strat) {
+TradingEngine::create_strategy(const v1::RegisterStrategyRequest &strat) {
   // If the client already exists (e.g. it disconnected and reconnected), no
   // need to recreate it, it will resubscribe to it's data feeds in
   // RegisterStrategy anyways
-  if (managers_.contains(strat.id))
+  if (managers_.contains(strat.strategy_id()))
     return std::monostate{};
 
   std::unique_ptr<IExecutionGateway> gateway;
 
-  if (strat.gateway == "grpc_adapter") {
-    if (!strat.adapter)
+  if (strat.gateway() == v1::Gateway::GrpcAdapter) {
+    if (!strat.has_adapter())
       return std::unexpected(Error{
-          "Strategy '" + strat.id +
+          "Strategy '" + strat.strategy_id() +
               "' uses gateway 'grpc_adapter' but has no 'adapter' config block",
           ErrorType::Error});
 
     auto conn = adapter_manager_.get_or_create(
-        strat.adapter->venue, strat.account_id, *strat.adapter);
-    gateway = std::make_unique<GrpcGateway>(strat.id, conn);
+        strat.adapter().venue(), strat.account_id(), strat.adapter());
+    gateway = std::make_unique<GrpcGateway>(strat.strategy_id(), conn);
 
-  } else if (strat.gateway == "alpaca") {
+  } else if (strat.gateway() == v1::Gateway::Alpaca) {
 #if TRADING_ENABLE_ALPACA_SDK
     gateway = std::make_unique<AlpacaGateway>();
 #else
@@ -60,39 +60,43 @@ TradingEngine::create_strategy(const StrategyConfig &strat) {
         Error{"Alpaca gateway not compiled in (TRADING_ENABLE_ALPACA_SDK=OFF)",
               ErrorType::Error});
 #endif
-  } else if (strat.gateway == "paper trading") {
+  } else if (strat.gateway() == v1::Gateway::PaperTrading) {
     gateway = std::make_unique<PaperGateway>();
   } else {
     return std::unexpected(
-        Error{"Invalid gateway: " + strat.gateway, ErrorType::Error});
+        Error{"Invalid gateway: " + std::to_string(static_cast<int>(strat.gateway())),
+              ErrorType::Error});
   }
 
-  managers_.emplace(StrategyId{strat.id},
+  managers_.emplace(StrategyId{strat.strategy_id()},
                     OrderManager::create_order_manager(
-                        strat.account_id, std::make_unique<PositionKeeper>(),
+                        strat.account_id(), std::make_unique<PositionKeeper>(),
                         std::move(gateway),
-                        std::make_unique<SQLiteJournal>(strat.id),
-                        std::make_unique<SQLiteOrderStore>(strat.id),
+                        std::make_unique<SQLiteJournal>(strat.strategy_id()),
+                        std::make_unique<SQLiteOrderStore>(strat.strategy_id()),
                         std::make_unique<RiskManager>(RiskLimits{})));
 
-  if (strat.market_data) {
-    OrderManager *om = managers_.at(strat.id).get();
-    const FeedKey feed_key{strat.market_data->feed, strat.account_id};
+  if (strat.has_market_data()) {
+    OrderManager *om = managers_.at(strat.strategy_id()).get();
+    const FeedKey feed_key{strat.market_data().feed(), strat.account_id()};
 
-    if (strat.gateway == "grpc_adapter" && strat.adapter &&
+    if (strat.gateway() == v1::Gateway::GrpcAdapter && strat.has_adapter() &&
         !feed_registry_.has_feed(feed_key)) {
       // Creates the adapter process for the current strategy's market data feed
       auto conn = adapter_manager_.get_or_create(
-          strat.adapter->venue, strat.account_id, *strat.adapter);
+          strat.adapter().venue(), strat.account_id(), strat.adapter());
       feed_registry_.register_feed(
           feed_key, std::make_unique<GrpcMarketDataFeed>(std::move(conn)));
-    } else if (strat.market_data && strat.market_data->feed == "simulated") {
+    } else if (strat.has_market_data() &&
+               strat.market_data().feed() == v1::Feed::Simulated) {
       feed_registry_.register_feed(feed_key, std::make_unique<SimulatedFeed>());
     }
 
-    for (const auto &sub : strat.market_data->subscriptions)
-      feed_registry_.register_subscription(feed_key, sub.symbol, sub.period,
-                                           om);
+    for (const auto &sub : strat.market_data().subscriptions())
+      feed_registry_.register_subscription(
+          feed_key, sub.symbol(),
+          sub.has_period() ? std::make_optional(sub.period()) : std::nullopt,
+          om);
   }
 
   return std::monostate{};
@@ -101,41 +105,17 @@ TradingEngine::create_strategy(const StrategyConfig &strat) {
 // This is the epic dynamic strategy registration function
 Result<std::monostate>
 TradingEngine::RegisterStrategy(const v1::RegisterStrategyRequest &req) {
-  // Convert proto message -> StrategyConfig
-  StrategyConfig strat;
-  strat.id = req.strategy_id();
-  strat.account_id = req.account_id();
-  strat.gateway = req.gateway();
-
-  if (req.has_adapter()) {
-    AdapterConfig ac;
-    ac.venue = req.adapter().venue();
-    ac.credentials_path = req.adapter().credentials_path();
-    ac.port = req.adapter().port();
-    strat.adapter = std::move(ac);
-  }
-
-  if (req.has_market_data()) {
-    MarketDataConfig md;
-    md.feed = req.market_data().feed();
-    for (const auto &sub : req.market_data().subscriptions())
-      md.subscriptions.push_back(
-          {sub.symbol(), (sub.has_period() ? std::make_optional(sub.period())
-                                           : std::nullopt)});
-    strat.market_data = std::move(md);
-  }
-
   std::unique_lock lk{managers_mu_};
   if (std::any_of(managers_.begin(), managers_.end(),
                   [&](const auto &manager_it) {
-                    return manager_it.first == strat.id;
+                    return manager_it.first == req.strategy_id();
                   })) {
     return std::unexpected(Error{
         .message_ = "A strategy with this ID already exists.",
         .type_ = ErrorType::Error,
     });
   }
-  return create_strategy(strat);
+  return create_strategy(req);
 }
 
 Result<BrokerOrderId>

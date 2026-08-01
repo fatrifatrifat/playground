@@ -21,7 +21,7 @@ AdapterManager::~AdapterManager() { stop_all(); }
 std::shared_ptr<AdapterConnection>
 AdapterManager::get_or_create(const std::string &venue,
                               const std::string &account_id,
-                              const AdapterConfig &cfg) {
+                              const v1::AdapterConfigMessage &cfg) {
   // Get if already exists
   AdapterKey key{venue, account_id};
   if (auto it = processes_.find(key); it != processes_.end())
@@ -30,7 +30,7 @@ AdapterManager::get_or_create(const std::string &venue,
   AdapterProcess proc;
   // TODO: Client shouldn't worry about giving a port(?), we should be the big
   // boys handling that if possible
-  proc.address = std::format("127.0.0.1:{}", cfg.port);
+  proc.address = std::format("127.0.0.1:{}", cfg.port());
   proc.conn = make_adapter_connection(proc.address);
 
   spawn(proc, cfg);
@@ -45,7 +45,10 @@ AdapterManager::get_or_create(const std::string &venue,
   return stored.conn;
 }
 
-void AdapterManager::spawn(AdapterProcess &proc, const AdapterConfig &cfg) {
+void AdapterManager::spawn(AdapterProcess &proc,
+                           const v1::AdapterConfigMessage &cfg) {
+  static constexpr const char *binary_path =
+      "python_client/adapters/adapter.py";
   const pid_t pid = fork();
   if (pid < 0)
     throw std::runtime_error(std::format("fork() failed: {}", strerror(errno)));
@@ -53,11 +56,11 @@ void AdapterManager::spawn(AdapterProcess &proc, const AdapterConfig &cfg) {
   if (pid == 0) {
     // Creates a copy of the current process with fork and starts the python
     // adapter process with exec()
-    const std::string port_str = std::to_string(cfg.port);
+    const std::string port_str = std::to_string(cfg.port());
     std::vector<const char *> argv = {
-        "python3",        cfg.binary_path.c_str(), "--port",
-        port_str.c_str(), "--credentials",         cfg.credentials_path.c_str(),
-        "--venue",        cfg.venue.c_str(),
+        "python3",        binary_path,         "--port",
+        port_str.c_str(), "--credentials",     cfg.credentials_path().c_str(),
+        "--venue",        cfg.venue().c_str(),
     };
     argv.push_back(nullptr);
 
