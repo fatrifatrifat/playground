@@ -30,7 +30,7 @@ AdapterManager::get_or_create(const std::string &venue,
   AdapterProcess proc;
   // TODO: Client shouldn't worry about giving a port(?), we should be the big
   // boys handling that if possible
-  proc.address = std::format("0.0.0.0:{}", cfg.port());
+  proc.address = std::format("127.0.0.1:{}", cfg.port());
   proc.conn = make_adapter_connection(proc.address);
 
   spawn(proc, cfg);
