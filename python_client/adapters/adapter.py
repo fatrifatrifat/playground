@@ -27,6 +27,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../.
 VENUE_REGISTRY: dict[str, type] = {}
 
 def _register_venues() -> None:
+    pass
     # Add future venues here as follows:
     # try:
     #     from python_client.adapters.paper_adapter import PaperAdapter

@@ -1,3 +1,4 @@
+#include <spdlog/spdlog.h>
 #include <trading/grpc/grpc_server.h>
 #include <trading/utils/order_id_generator.h>
 
@@ -22,7 +23,7 @@ void gRPCServer::start() {
   builder.RegisterService(service_.get());
 
   server_ = builder.BuildAndStart();
-  std::cout << "gRPC server listening on " << server_address_ << std::endl;
+  spdlog::info("gRPC server listening on {}", server_address_);
 }
 
 void gRPCServer::wait() {
@@ -32,7 +33,8 @@ void gRPCServer::wait() {
 
 void gRPCServer::shutdown() {
   if (server_)
-    server_->Shutdown();
+    server_->Shutdown(std::chrono::system_clock::now() +
+                      std::chrono::seconds(2));
 }
 
 gRPCServer::ExecutionServiceImpl::ExecutionServiceImpl(gRPCServer *owner)
@@ -41,16 +43,15 @@ gRPCServer::ExecutionServiceImpl::ExecutionServiceImpl(gRPCServer *owner)
 grpc::Status gRPCServer::ExecutionServiceImpl::SubmitSignal(
     grpc::ServerContext *context, const v1::StrategySignal *request,
     v1::SubmitSignalResponse *response) {
-
   if (!owner_ || !owner_->handler_) [[unlikely]] {
     response->set_accepted(false);
     response->set_rejection_reason("Server handler not initialized");
     return grpc::Status(grpc::ABORTED, "Server handler not initialized");
   }
 
-  std::cout << "Received signal from " << context->peer() << " - "
-            << request->strategy_id() << " " << request->side() << " "
-            << request->symbol() << std::endl;
+  spdlog::info("Received signal from {} - {} {} {}", context->peer(),
+               request->strategy_id(), static_cast<size_t>(request->side()),
+               request->symbol());
 
   auto r = owner_->handler_->SubmitSignal(*request);
 
@@ -69,7 +70,6 @@ grpc::Status gRPCServer::ExecutionServiceImpl::SubmitSignal(
 grpc::Status gRPCServer::ExecutionServiceImpl::CancelOrder(
     grpc::ServerContext *context, const v1::CancelSignal *request,
     v1::CancelOrderResponse *response) {
-
   response->set_received_at(get_current_time());
 
   if (!owner_ || !owner_->handler_) [[unlikely]] {
@@ -78,9 +78,8 @@ grpc::Status gRPCServer::ExecutionServiceImpl::CancelOrder(
     return grpc::Status(grpc::ABORTED, "Server handler not initialized");
   }
 
-  std::cout << "Cancel signal received from " << context->peer() << " - "
-            << request->strategy_id() << " " << request->order_id()
-            << std::endl;
+  spdlog::info("Cancel signal received from {} - {} {}", context->peer(),
+               request->strategy_id(), request->order_id());
 
   auto r = owner_->handler_->CancelOrder(*request);
 
@@ -98,7 +97,6 @@ grpc::Status gRPCServer::ExecutionServiceImpl::CancelOrder(
 grpc::Status gRPCServer::ExecutionServiceImpl::ReplaceOrder(
     grpc::ServerContext *context, const v1::ReplaceSignal *request,
     v1::ReplaceOrderResponse *response) {
-
   response->set_received_at(get_current_time());
 
   if (!owner_ || !owner_->handler_) [[unlikely]] {
@@ -107,9 +105,9 @@ grpc::Status gRPCServer::ExecutionServiceImpl::ReplaceOrder(
     return grpc::Status(grpc::ABORTED, "Server handler not initialized");
   }
 
-  std::cout << "Replace signal received from " << context->peer() << " - "
-            << request->strategy_id() << " " << request->side() << " "
-            << request->symbol() << request->order_id() << std::endl;
+  spdlog::info("Replace signal received from {} - {} {} {} {}", context->peer(),
+               request->strategy_id(), static_cast<size_t>(request->side()),
+               request->symbol(), request->order_id());
 
   auto r = owner_->handler_->ReplaceOrder(*request);
 
@@ -129,13 +127,12 @@ grpc::Status gRPCServer::ExecutionServiceImpl::StreamSignals(
     grpc::ServerContext *context,
     grpc::ServerReaderWriter<v1::SubmitSignalResponse, v1::StrategySignal>
         *stream) {
-
   if (!owner_ || !owner_->handler_) [[unlikely]] {
     return grpc::Status(grpc::FAILED_PRECONDITION,
                         "Server handler not initialized");
   }
 
-  std::cout << "Client " << context->peer() << " opened signal stream";
+  spdlog::info("Client {} opened signal stream", context->peer());
 
   v1::StrategySignal signal;
   while (stream->Read(&signal)) {
@@ -153,21 +150,19 @@ grpc::Status gRPCServer::ExecutionServiceImpl::StreamSignals(
     stream->Write(response);
   }
 
-  std::cout << "Client " << context->peer() << " closed signal stream\n";
+  spdlog::info("Client {} closed signal stream", context->peer());
   return grpc::Status::OK;
 }
 
 grpc::Status gRPCServer::ExecutionServiceImpl::GetPosition(
     grpc::ServerContext *context, const v1::GetPositionRequest *request,
     v1::Position *response) {
-
   if (!owner_ || !owner_->handler_) [[unlikely]] {
     return grpc::Status(grpc::StatusCode::FAILED_PRECONDITION,
                         "Server handler not initialized");
   }
 
-  std::cout << "Received position request from " << context->peer()
-            << std::endl;
+  spdlog::info("Received position request from {}", context->peer());
 
   auto r = owner_->handler_->GetPosition(*request);
   if (!r)
@@ -181,14 +176,12 @@ grpc::Status
 gRPCServer::ExecutionServiceImpl::GetAllPositions(grpc::ServerContext *context,
                                                   const v1::Empty *request,
                                                   v1::PositionList *response) {
-
   if (!owner_ || !owner_->handler_) [[unlikely]] {
     return grpc::Status(grpc::StatusCode::FAILED_PRECONDITION,
                         "Server handler not initialized");
   }
 
-  std::cout << "Received position request for all from " << context->peer()
-            << std::endl;
+  spdlog::info("Received position request for all from {}", context->peer());
 
   auto r = owner_->handler_->GetAllPositions(*request);
   if (!r) [[unlikely]]
@@ -201,7 +194,6 @@ gRPCServer::ExecutionServiceImpl::GetAllPositions(grpc::ServerContext *context,
 grpc::Status gRPCServer::ExecutionServiceImpl::ActivateKillSwitch(
     grpc::ServerContext *context, const v1::KillSwitchRequest *request,
     v1::Empty *response) {
-
   (void)response;
 
   if (!owner_ || !owner_->handler_) [[unlikely]] {
@@ -209,8 +201,7 @@ grpc::Status gRPCServer::ExecutionServiceImpl::ActivateKillSwitch(
                         "Server handler not initialized");
   }
 
-  std::cout << "Received kill switch request from " << context->peer()
-            << std::endl;
+  spdlog::info("Received kill switch request from {}", context->peer());
 
   auto r = owner_->handler_->ActivateKillSwitch(*request);
   if (!r) [[unlikely]]
@@ -222,7 +213,6 @@ grpc::Status gRPCServer::ExecutionServiceImpl::ActivateKillSwitch(
 grpc::Status gRPCServer::ExecutionServiceImpl::StreamMarketData(
     grpc::ServerContext *context, const v1::SubscribeMarketDataRequest *request,
     grpc::ServerWriter<v1::MarketDataEvent> *writer) {
-
   if (!owner_ || !owner_->handler_) {
     return grpc::Status(grpc::StatusCode::FAILED_PRECONDITION,
                         "Server handler not initialized");
@@ -277,9 +267,8 @@ grpc::Status gRPCServer::ExecutionServiceImpl::StreamMarketData(
   if (!r)
     return grpc::Status(grpc::StatusCode::NOT_FOUND, r.error().message_);
 
-  std::cout << "Client " << context->peer()
-            << " subscribed to market data for strategy " << strategy_id
-            << "\n";
+  spdlog::info("Client {} subscribed to market data for strategy {}",
+               context->peer(), strategy_id);
 
   // Holds the gRPC thread open until disconnected or not active anymore
   while (!context->IsCancelled() && active->load(std::memory_order_relaxed))
@@ -289,25 +278,23 @@ grpc::Status gRPCServer::ExecutionServiceImpl::StreamMarketData(
   // ServerWriter
   owner_->handler_->ClearMarketDataStream(strategy_id);
 
-  std::cout << "Client " << context->peer()
-            << " unsubscribed from market data for strategy " << strategy_id
-            << "\n";
+  spdlog::info("Client {} unsubscribed to market data for strategy {}",
+               context->peer(), strategy_id);
   return grpc::Status::OK;
 }
 
 grpc::Status gRPCServer::ExecutionServiceImpl::RegisterStrategy(
     grpc::ServerContext *context, const v1::RegisterStrategyRequest *request,
     v1::RegisterStrategyResponse *response) {
-
   if (!owner_ || !owner_->handler_) [[unlikely]] {
     response->set_accepted(false);
     response->set_rejection_reason("Server handler not initialized");
     return grpc::Status(grpc::ABORTED, "Server handler not initialized");
   }
 
-  std::cout << "RegisterStrategy request from " << context->peer() << " - "
-            << request->strategy_id() << " gateway=" << request->gateway()
-            << std::endl;
+  spdlog::info("RegisterStrategy request from {} - {} gateway={}",
+               context->peer(), request->strategy_id(),
+               static_cast<int>(request->gateway()));
 
   auto r = owner_->handler_->RegisterStrategy(*request);
 
@@ -324,7 +311,6 @@ grpc::Status gRPCServer::ExecutionServiceImpl::RegisterStrategy(
 grpc::Status gRPCServer::ExecutionServiceImpl::StreamFills(
     grpc::ServerContext *context, const v1::SubscribeFillsRequest *request,
     grpc::ServerWriter<v1::ExecutionReport> *writer) {
-
   if (!owner_ || !owner_->handler_) [[unlikely]] {
     return grpc::Status(grpc::StatusCode::FAILED_PRECONDITION,
                         "Server handler not initialized");
@@ -344,18 +330,16 @@ grpc::Status gRPCServer::ExecutionServiceImpl::StreamFills(
   if (!r)
     return grpc::Status(grpc::StatusCode::NOT_FOUND, r.error().message_);
 
-  std::cout << "Client " << context->peer()
-            << " subscribed to fill stream for strategy " << strategy_id
-            << "\n";
+  spdlog::info("Client {} subscribed to fill stream for strategy {}",
+               context->peer(), strategy_id);
 
   while (!context->IsCancelled() && active->load(std::memory_order_relaxed))
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
   owner_->handler_->ClearFillStream(strategy_id);
 
-  std::cout << "Client " << context->peer()
-            << " unsubscribed from fill stream for strategy " << strategy_id
-            << "\n";
+  spdlog::info("Client {} unsubscribed to fill stream for strategy {}",
+               context->peer(), strategy_id);
   return grpc::Status::OK;
 }
 

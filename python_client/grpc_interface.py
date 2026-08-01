@@ -24,8 +24,6 @@ logging.basicConfig(level=logging.INFO)
 
 
 class ExecutionClient:
-    """Python client for C++ execution engine"""
-
     def __init__(self, server_address: str = "localhost:50051"):
         self.logger = logging.getLogger(__name__)
         self.channel = grpc.insecure_channel(server_address)
@@ -256,12 +254,9 @@ class ExecutionClient:
         on_bar: Optional[Callable] = None,
     ) -> None:
         """
-        Subscribe to the market data stream for ``strategy_id``.
+        Subscribe to the market data stream for ``strategy_id``
 
-        Blocks until the stream ends (server shutdown or client disconnect).
-
-        ``on_tick()`` receives a TickEvent protobuf message.
-        ``on_bar()``  receives a BarEvent  protobuf message.
+        Blocks until the stream ends (server shutdown or client disconnect)
         """
         req = market_data_pb2.SubscribeMarketDataRequest(strategy_id=strategy_id)
         try:

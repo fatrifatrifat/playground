@@ -86,8 +86,15 @@ message MarketDataSubscriptionMessage {
   optional string period = 2;
 }
 
+enum Feed {
+  SimulatedFeed = 0;
+  AlpacaFeed = 1;
+  AdapterFeed = 2;
+  // ...
+}
+
 message MarketDataConfigMessage {
-  string feed = 1;
+  Feed feed = 1;
   repeated MarketDataSubscriptionMessage subscriptions = 2;
 }
 
@@ -97,11 +104,18 @@ message AdapterConfigMessage {
   int32 port = 3;
 }
 
+enum Gateway {
+  PaperTradingGW = 0;
+  GrpcAdapterGW = 1;
+  AlpacaGW = 2;
+  // IBKR = 3;
+  // ...
+}
+
 message RegisterStrategyRequest {
   string strategy_id = 1;
   string account_id = 2;
-  // "paper trading", "alpaca", or "grpc_adapter"
-  string gateway = 3;
+  Gateway gateway = 3;
   // Only set when gateway == "grpc_adapter"
   optional AdapterConfigMessage adapter = 4;
   // Strategies without market data subscriptions omit this
