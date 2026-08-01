@@ -1,7 +1,8 @@
-#include <iostream>
+#include <spdlog/spdlog.h>
 #include <trading/core/order_manager.h>
 #include <trading/utils/event_queue.h>
-#include <spdlog/spdlog.h>
+
+#include <iostream>
 
 namespace quarcc {
 
@@ -75,7 +76,9 @@ void OrderManager::enqueue(OMEvent event) {
   if (std::holds_alternative<Bar>(event) ||
       std::holds_alternative<Tick>(event)) {
     if (!queue_.try_push(std::move(event), MAX_MARKETDATA_QUEUE_DEPTH))
-      spdlog::warn("[OrderManager] Market data dropped - queue full ({} total drops)", queue_.dropped_count());
+      spdlog::warn(
+          "[OrderManager] Market data dropped - queue full ({} total drops)",
+          queue_.dropped_count());
     return;
   }
   queue_.push(std::move(event));
@@ -124,7 +127,6 @@ void OrderManager::handle_fill(const v1::ExecutionReport &fill) {
   const auto proto_status = fill.status();
   if (proto_status == v1::OrderStatus::REJECTED ||
       proto_status == v1::OrderStatus::CANCELLED) {
-
     const OrderStatus new_status = (proto_status == v1::OrderStatus::REJECTED)
                                        ? OrderStatus::REJECTED
                                        : OrderStatus::CANCELLED;
