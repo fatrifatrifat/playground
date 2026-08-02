@@ -53,7 +53,7 @@ TradingEngine::create_strategy(const v1::RegisterStrategyRequest &strat) {
       auto conn = adapter_manager_.get_or_create(
         strat.adapter().venue(), strat.account_id(), strat.adapter());
       gateway = std::make_unique<GrpcGateway>(strat.strategy_id(), conn);
-    } catch (std::runtime_error err) {
+    } catch (const std::runtime_error& err) {
       return std::unexpected { Error { err.what(), ErrorType::Error } };
     }
 
@@ -118,8 +118,8 @@ TradingEngine::create_strategy(const v1::RegisterStrategyRequest &strat) {
             feed_key, sub.symbol(),
             sub.has_period() ? std::make_optional(sub.period()) : std::nullopt,
             om);
-      } catch (...) {
-        return std::unexpected { Error { "Error registering a subscription: " + sub.symbol(), ErrorType::Error} };
+      } catch (const std::exception& err) {
+        return std::unexpected { Error { std::string { err.what() } + " (Error occured while registering symbol: " + sub.symbol() + ")", ErrorType::Error} };
       }
     }
   }

@@ -268,8 +268,8 @@ OrderManager::process_signal(const v1::StrategySignal &signal) {
 
   try {
     stored.created_at = LogEntry::timestamp_to_string(LogEntry::now());
-  } catch (...) {
-    return std::unexpected { Error { "Converting a timestamp to a string was unsuccessful during signal creation", ErrorType::FailedOrder } };
+  } catch (const std::exception& err) {
+    return std::unexpected { Error { std::string { err.what() } + " (Occured while converting timestamp to string in signal creation)", ErrorType::FailedOrder } };
   }
   if (auto r = order_store_->store_order(stored); !r) {
     journal_->log(Event::ERROR_OCCURRED, r.error().message_, local_id);
@@ -404,8 +404,8 @@ OrderManager::process_signal(const v1::ReplaceSignal &signal) {
 
   try {
     stored.created_at = LogEntry::timestamp_to_string(LogEntry::now());
-  } catch (...) {
-    return std::unexpected { Error { "Converting a timestamp to a string was unsuccessful during signal replacement", ErrorType::FailedOrder } };
+  } catch (const std::exception& err) {
+    return std::unexpected { Error { std::string { err.what() } + " (Occured while converting timestamp to string in signal replacement)", ErrorType::FailedOrder } };
   }
 
   if (auto r = order_store_->store_order(stored); !r) {

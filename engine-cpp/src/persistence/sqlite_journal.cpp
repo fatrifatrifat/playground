@@ -76,8 +76,8 @@ void SQLiteJournal::log(Event event, const std::string& data, const std::string&
   
   try {
     timestamp_str = LogEntry::timestamp_to_string(now);
-  } catch (...) {
-    std::cerr << "Error converting timestamp to string\n";
+  } catch (const std::exception& err) {
+    spdlog::error(std::string { err.what() } + " (Error occured when converting timestamp to string during journal logging)\n");
   }
 
   sqlite3_bind_text(stmt, 1, timestamp_str.c_str(), -1, SQLITE_TRANSIENT);
@@ -129,15 +129,15 @@ SQLiteJournal::get_history(Timestamp from, Timestamp to,
   std::string to_str;
 
   try {
-    std::string from_str = LogEntry::timestamp_to_string(from);
-  } catch (...) {
-    return std::unexpected { Error { "Error converting timestamp to string : from", ErrorType::Error } };
+    from_str = LogEntry::timestamp_to_string(from);
+  } catch (const std::exception& err) {
+    return std::unexpected { Error { std::string { err.what() } + " (Occured when converting timestamp to string : from)", ErrorType::Error } };
   }
 
   try {
-    std::string to_str = LogEntry::timestamp_to_string(to);
-  } catch (...) {
-    return std::unexpected { Error { "Error converting timestamp to string : to", ErrorType::Error} };
+    to_str = LogEntry::timestamp_to_string(to);
+  } catch (const std::exception& err) {
+    return std::unexpected { Error { std::string { err.what() } + " (Occured when converting timestamp to string : to)", ErrorType::Error} };
   }
   
   sqlite3_bind_text(stmt, 1, from_str.c_str(), -1, SQLITE_TRANSIENT);
