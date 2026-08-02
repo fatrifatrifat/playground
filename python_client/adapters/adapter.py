@@ -27,15 +27,14 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../.
 VENUE_REGISTRY: dict[str, type] = {}
 
 def _register_venues() -> None:
-    pass
     # Add future venues here as follows:
-    # try:
-    #     from python_client.adapters.paper_adapter import PaperAdapter
-    #     VENUE_REGISTRY["paper"] = PaperAdapter
+    try:
+        from python_client.adapters.paper_trading import PaperAdapter
+        VENUE_REGISTRY["paper"] = PaperAdapter
+    except ImportError as exc:
+        logger.warning("ibkr adapter unavailable: %s", exc)
     #     from python_client.adapters.ibkr_adapter import IbkrAdapter
     #     VENUE_REGISTRY["ibkr"] = IbkrAdapter
-    # except ImportError as exc:
-    #     logger.warning("ibkr adapter unavailable: %s", exc)
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Quarcc gateway adapter process")
