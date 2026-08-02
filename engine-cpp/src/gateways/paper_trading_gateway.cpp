@@ -70,7 +70,9 @@ void PaperGateway::start() {
   simulation_thread_ = std::thread([this] {
     while (running_) {
       simulate_fills();
-      std::this_thread::sleep_for(std::chrono::milliseconds{100});
+      std::uniform_real_distribution<double> dist{0.0, 3.0};
+      const size_t fill_wait = 100 + dist(rng_) * 100;
+      std::this_thread::sleep_for(std::chrono::milliseconds{fill_wait});
     }
   });
 }

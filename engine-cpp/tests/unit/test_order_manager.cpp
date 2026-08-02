@@ -31,8 +31,9 @@ struct OrderManagerFixture : public Test {
     store = os_owned.get();
 
     manager = OrderManager::create_order_manager(
-        std::format("strategy_#{}", id), std::make_unique<PositionKeeper>(),
-        std::move(gw_owned), std::move(jn_owned), std::move(os_owned),
+        std::format("strategy_{}", id), std::format("strategy_#{}", id),
+        std::make_unique<PositionKeeper>(), std::move(gw_owned),
+        std::move(jn_owned), std::move(os_owned),
         std::make_unique<RiskManager>(RiskLimits{}));
   }
 };

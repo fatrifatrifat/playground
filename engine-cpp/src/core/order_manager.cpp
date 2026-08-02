@@ -1,5 +1,6 @@
 #include <spdlog/spdlog.h>
 #include <trading/core/order_manager.h>
+#include <trading/core/position_keeper.h>
 #include <trading/utils/event_queue.h>
 
 #include <iostream>
@@ -31,12 +32,24 @@ v1::Order create_order_from_signal(const T &signal,
   return order;
 }
 
+struct RecoveryData {
+  std::unordered_map<std::string, PositionKeeper::Position> positions_;
+};
+
 } // namespace
 
 std::unique_ptr<OrderManager> OrderManager::create_order_manager(
-    std::string account_id, std::unique_ptr<PositionKeeper> pk,
-    std::unique_ptr<IExecutionGateway> gw, std::unique_ptr<IJournal> lj,
-    std::unique_ptr<IOrderStore> os, std::unique_ptr<RiskManager> rm) {
+    std::string strategy_id, std::string account_id,
+    std::unique_ptr<PositionKeeper> pk, std::unique_ptr<IExecutionGateway> gw,
+    std::unique_ptr<IJournal> lj, std::unique_ptr<IOrderStore> os,
+    std::unique_ptr<RiskManager> rm) {
+
+  spdlog::info("Path: {}",
+               (std::filesystem::current_path() / strategy_id).string());
+  if (std::filesystem::exists(std::filesystem::current_path() / strategy_id)) {
+    spdlog::warn("Crash recovery...");
+  }
+
   return std::unique_ptr<OrderManager>(
       new OrderManager(std::move(account_id), std::move(pk), std::move(gw),
                        std::move(lj), std::move(os), std::move(rm)));

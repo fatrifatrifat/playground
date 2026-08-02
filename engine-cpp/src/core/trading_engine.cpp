@@ -71,8 +71,8 @@ TradingEngine::create_strategy(const v1::RegisterStrategyRequest &strat) {
 
   managers_.emplace(StrategyId{strat.strategy_id()},
                     OrderManager::create_order_manager(
-                        strat.account_id(), std::make_unique<PositionKeeper>(),
-                        std::move(gateway),
+                        strat.strategy_id(), strat.account_id(),
+                        std::make_unique<PositionKeeper>(), std::move(gateway),
                         std::make_unique<SQLiteJournal>(strat.strategy_id()),
                         std::make_unique<SQLiteOrderStore>(strat.strategy_id()),
                         std::make_unique<RiskManager>(RiskLimits{})));

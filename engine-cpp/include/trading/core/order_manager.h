@@ -4,11 +4,11 @@
 #include "strategy_signal.pb.h"
 
 #include <trading/core/position_keeper.h>
+#include <trading/core/risk_manager.h>
 #include <trading/interfaces/i_execution_gateway.h>
 #include <trading/interfaces/i_journal.h>
 #include <trading/interfaces/i_market_data_feed.h>
 #include <trading/interfaces/i_order_store.h>
-#include <trading/core/risk_manager.h>
 #include <trading/utils/event_queue.h>
 #include <trading/utils/order_id_generator.h>
 #include <trading/utils/order_id_types.h>
@@ -47,9 +47,10 @@ public:
   ~OrderManager();
 
   static std::unique_ptr<OrderManager> create_order_manager(
-      std::string account_id, std::unique_ptr<PositionKeeper> pk,
-      std::unique_ptr<IExecutionGateway> gw, std::unique_ptr<IJournal> lj,
-      std::unique_ptr<IOrderStore> os, std::unique_ptr<RiskManager> rm);
+      std::string strategy_id, std::string account_id,
+      std::unique_ptr<PositionKeeper> pk, std::unique_ptr<IExecutionGateway> gw,
+      std::unique_ptr<IJournal> lj, std::unique_ptr<IOrderStore> os,
+      std::unique_ptr<RiskManager> rm);
 
   // May be called by different threads (gRPC, market feed, etc.)
   void enqueue(OMEvent event);
@@ -86,7 +87,6 @@ private:
                std::unique_ptr<IExecutionGateway> gw,
                std::unique_ptr<IJournal> lj, std::unique_ptr<IOrderStore> os,
                std::unique_ptr<RiskManager> rm);
-
 
   // Big dawg loop that cleans up the event queue by calling the right handler
   // for the queue's front event
