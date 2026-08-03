@@ -13,6 +13,17 @@ namespace quarcc {
 
 class PositionKeeper {
 public:
+  struct Position {
+    std::string symbol;
+    double quantity = 0.0;
+    double avgPrice = 0.0;
+    double rPnL = 0.0;
+  };
+
+  void apply_positions(std::unordered_map<std::string, Position> pos_to_apply) {
+    positions_ = std::move(pos_to_apply);
+  }
+
   // Called by OrderManager::process_fills() whenever a fill arrives from the
   // gateway. Updates the in-memory position with a signed-quantity weighted-
   // average price calculation.
@@ -24,13 +35,6 @@ public:
   double get_total_pnl() const;
 
 private:
-  struct Position {
-    std::string symbol;
-    double quantity = 0.0;
-    double avgPrice = 0.0;
-    double rPnL = 0.0;
-  };
-
   mutable std::shared_mutex mutex_;
   std::unordered_map<std::string, Position> positions_;
 };

@@ -1,5 +1,6 @@
 #include <spdlog/spdlog.h>
 #include <trading/core/order_manager.h>
+#include <trading/core/position_keeper.h>
 #include <trading/utils/event_queue.h>
 
 #include <iostream>
@@ -31,12 +32,24 @@ v1::Order create_order_from_signal(const T &signal,
   return order;
 }
 
+struct RecoveryData {
+  std::unordered_map<std::string, PositionKeeper::Position> positions_;
+};
+
 } // namespace
 
 std::unique_ptr<OrderManager> OrderManager::create_order_manager(
-    std::string account_id, std::unique_ptr<PositionKeeper> pk,
-    std::unique_ptr<IExecutionGateway> gw, std::unique_ptr<IJournal> lj,
-    std::unique_ptr<IOrderStore> os, std::unique_ptr<RiskManager> rm) {
+    std::string strategy_id, std::string account_id,
+    std::unique_ptr<PositionKeeper> pk, std::unique_ptr<IExecutionGateway> gw,
+    std::unique_ptr<IJournal> lj, std::unique_ptr<IOrderStore> os,
+    std::unique_ptr<RiskManager> rm) {
+
+  spdlog::info("Path: {}",
+               (std::filesystem::current_path() / strategy_id).string());
+  if (std::filesystem::exists(std::filesystem::current_path() / strategy_id)) {
+    spdlog::warn("Crash recovery...");
+  }
+
   return std::unique_ptr<OrderManager>(
       new OrderManager(std::move(account_id), std::move(pk), std::move(gw),
                        std::move(lj), std::move(os), std::move(rm)));
@@ -71,8 +84,7 @@ OrderManager::~OrderManager() { gateway_->stop(); }
 
 void OrderManager::enqueue(OMEvent event) {
   // Can drop market data if there's too much to process, it's okay to drop them
-  // This doesn't apply to v1::ExecutionReport and RetryFillsEvent because they
-  // CANNOT be dropped
+  // This doesn't apply to v1::ExecutionReport because it CANNOT be dropped
   if (std::holds_alternative<Bar>(event) ||
       std::holds_alternative<Tick>(event)) {
     if (!queue_.try_push(std::move(event), MAX_MARKETDATA_QUEUE_DEPTH))
@@ -93,7 +105,6 @@ void OrderManager::run_dispatch_loop(std::stop_token st) {
                    [this](const v1::ExecutionReport &r) { handle_fill(r); },
                    [this](const Bar &b) { handle_bar(b); },
                    [this](const Tick &t) { handle_tick(t); },
-                   [this](RetryFillsEvent) { handle_retry_fills(); },
                },
                event);
     queue_.mark_processed();
@@ -118,7 +129,7 @@ void OrderManager::handle_fill(const v1::ExecutionReport &fill) {
   if (!local_id_opt) {
     // id_mapper_ didn't register the order's id yet, so we'll handle the fill
     // later
-    deferred_fills_.push_back(fill);
+    spdlog::error("No more RetryFills, this shouldn't be happening");
     return;
   }
   const std::string &local_id = *local_id_opt;
@@ -235,16 +246,6 @@ void OrderManager::clear_fill_sink() {
   fill_sink_ = nullptr;
 }
 
-void OrderManager::handle_retry_fills() {
-  // Drain deferred_fills_ into handle_fill(). Fills that still can't resolve
-  // (unlikely but possible if multiple orders are in flight) go back into
-  // deferred_fills_ via handle_fill()'s defer path
-  auto to_retry = std::move(deferred_fills_);
-  deferred_fills_.clear();
-  for (const auto &fill : to_retry)
-    handle_fill(fill);
-}
-
 // All the processing of the signals that runs concurrently to the dispatch
 // thread. Each component of the OM should be thread safe
 
@@ -314,10 +315,6 @@ OrderManager::process_signal(const v1::StrategySignal &signal) {
 
   id_mapper_->add_mapping(local_id, broker_id);
   open_order_count_++;
-
-  // Signal the dispatch thread to retry any fills that arrived before the
-  // mapping was established (the deferred fill race window)
-  enqueue(RetryFillsEvent{});
 
   if (auto r = order_store_->update_broker_id(local_id, broker_id); !r) {
     journal_->log(Event::ERROR_OCCURRED, r.error().message_, local_id);
@@ -405,7 +402,6 @@ OrderManager::process_signal(const v1::ReplaceSignal &signal) {
   }
 
   id_mapper_->add_mapping(new_local_id, new_broker_id);
-  enqueue(RetryFillsEvent{});
 
   journal_->log(Event::ORDER_SUBMITTED,
                 std::format("Old: {} -> New: {} (Broker: {})", old_local_id,

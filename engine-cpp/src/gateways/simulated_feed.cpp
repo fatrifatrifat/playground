@@ -230,7 +230,7 @@ void SimulatedFeed::emit_loop(std::stop_token st) {
       }
     }
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(350));
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
   }
 }
 

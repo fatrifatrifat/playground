@@ -4,11 +4,11 @@
 #include "strategy_signal.pb.h"
 
 #include <trading/core/position_keeper.h>
+#include <trading/core/risk_manager.h>
 #include <trading/interfaces/i_execution_gateway.h>
 #include <trading/interfaces/i_journal.h>
 #include <trading/interfaces/i_market_data_feed.h>
 #include <trading/interfaces/i_order_store.h>
-#include <trading/core/risk_manager.h>
 #include <trading/utils/event_queue.h>
 #include <trading/utils/order_id_generator.h>
 #include <trading/utils/order_id_types.h>
@@ -21,19 +21,14 @@
 
 namespace quarcc {
 
-// Sentinel pushed onto the OM queue after id_mapper_->add_mapping() to trigger
-// a deferred fill retry. Fills that arrived before the mapping was established
-// are held in deferred_fills_ and replayed when this event is processed.
-struct RetryFillsEvent {};
-
 // All events processed by each order manager
 // No lock required, they're all processed sequentially
-using OMEvent = std::variant<Bar, Tick, v1::ExecutionReport, RetryFillsEvent>;
+using OMEvent = std::variant<Bar, Tick, v1::ExecutionReport>;
 
 // Maximum number of market data events (Bar + Tick) buffered per OrderManager
 // before new ones are dropped
-// Fills and RetryFillsEvent are never subject to
-// this can
+// Fills are never subject to this can
+//
 // 2^13 is very random, but seems to give okay perf and doesn't kill my RAM :'(
 inline constexpr std::size_t MAX_MARKETDATA_QUEUE_DEPTH = 8192;
 
@@ -47,9 +42,10 @@ public:
   ~OrderManager();
 
   static std::unique_ptr<OrderManager> create_order_manager(
-      std::string account_id, std::unique_ptr<PositionKeeper> pk,
-      std::unique_ptr<IExecutionGateway> gw, std::unique_ptr<IJournal> lj,
-      std::unique_ptr<IOrderStore> os, std::unique_ptr<RiskManager> rm);
+      std::string strategy_id, std::string account_id,
+      std::unique_ptr<PositionKeeper> pk, std::unique_ptr<IExecutionGateway> gw,
+      std::unique_ptr<IJournal> lj, std::unique_ptr<IOrderStore> os,
+      std::unique_ptr<RiskManager> rm);
 
   // May be called by different threads (gRPC, market feed, etc.)
   void enqueue(OMEvent event);
@@ -87,7 +83,6 @@ private:
                std::unique_ptr<IJournal> lj, std::unique_ptr<IOrderStore> os,
                std::unique_ptr<RiskManager> rm);
 
-
   // Big dawg loop that cleans up the event queue by calling the right handler
   // for the queue's front event
   void run_dispatch_loop(std::stop_token st);
@@ -96,7 +91,6 @@ private:
   void handle_fill(const v1::ExecutionReport &fill);
   void handle_bar(const Bar &bar);
   void handle_tick(const Tick &tick);
-  void handle_retry_fills();
 
 private:
   std::string account_id_;
@@ -108,11 +102,6 @@ private:
   std::unique_ptr<RiskManager> risk_manager_;
   std::unique_ptr<OrderIdGenerator> id_generator_;
   std::unique_ptr<OrderIdMapper> id_mapper_;
-
-  // Container to store fills that arrived before the id_mapper_ registered
-  // the order. Replayed via RetryFillsEvent.
-  // TBD: Might not be needed anymore?
-  std::vector<v1::ExecutionReport> deferred_fills_;
 
   // Functions set at the grpc_server level to give behavior when a data comes,
   // basically sends that data through gRPC to the client. Look at

@@ -68,9 +68,13 @@ void PaperGateway::start() {
   start_dispatcher();
 
   simulation_thread_ = std::thread([this] {
+    std::mt19937 delay_rng{std::random_device{}()};
+    std::normal_distribution<double> delay_dist{150.0, 40.0};
     while (running_) {
       simulate_fills();
-      std::this_thread::sleep_for(std::chrono::milliseconds{100});
+      const auto ms = std::max(10.0, delay_dist(delay_rng));
+      std::this_thread::sleep_for(
+          std::chrono::milliseconds{static_cast<long long>(ms)});
     }
   });
 }
