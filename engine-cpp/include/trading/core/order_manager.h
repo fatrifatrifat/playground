@@ -21,19 +21,14 @@
 
 namespace quarcc {
 
-// Sentinel pushed onto the OM queue after id_mapper_->add_mapping() to trigger
-// a deferred fill retry. Fills that arrived before the mapping was established
-// are held in deferred_fills_ and replayed when this event is processed.
-struct RetryFillsEvent {};
-
 // All events processed by each order manager
 // No lock required, they're all processed sequentially
-using OMEvent = std::variant<Bar, Tick, v1::ExecutionReport, RetryFillsEvent>;
+using OMEvent = std::variant<Bar, Tick, v1::ExecutionReport>;
 
 // Maximum number of market data events (Bar + Tick) buffered per OrderManager
 // before new ones are dropped
-// Fills and RetryFillsEvent are never subject to
-// this can
+// Fills are never subject to this can
+//
 // 2^13 is very random, but seems to give okay perf and doesn't kill my RAM :'(
 inline constexpr std::size_t MAX_MARKETDATA_QUEUE_DEPTH = 8192;
 
@@ -108,11 +103,6 @@ private:
   std::unique_ptr<RiskManager> risk_manager_;
   std::unique_ptr<OrderIdGenerator> id_generator_;
   std::unique_ptr<OrderIdMapper> id_mapper_;
-
-  // Container to store fills that arrived before the id_mapper_ registered
-  // the order. Replayed via RetryFillsEvent.
-  // TBD: Might not be needed anymore?
-  std::vector<v1::ExecutionReport> deferred_fills_;
 
   // Functions set at the grpc_server level to give behavior when a data comes,
   // basically sends that data through gRPC to the client. Look at

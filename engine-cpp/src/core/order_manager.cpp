@@ -84,8 +84,7 @@ OrderManager::~OrderManager() { gateway_->stop(); }
 
 void OrderManager::enqueue(OMEvent event) {
   // Can drop market data if there's too much to process, it's okay to drop them
-  // This doesn't apply to v1::ExecutionReport and RetryFillsEvent because they
-  // CANNOT be dropped
+  // This doesn't apply to v1::ExecutionReport because it CANNOT be dropped
   if (std::holds_alternative<Bar>(event) ||
       std::holds_alternative<Tick>(event)) {
     if (!queue_.try_push(std::move(event), MAX_MARKETDATA_QUEUE_DEPTH))
@@ -106,7 +105,6 @@ void OrderManager::run_dispatch_loop(std::stop_token st) {
                    [this](const v1::ExecutionReport &r) { handle_fill(r); },
                    [this](const Bar &b) { handle_bar(b); },
                    [this](const Tick &t) { handle_tick(t); },
-                   [this](RetryFillsEvent) { handle_retry_fills(); },
                },
                event);
     queue_.mark_processed();
@@ -328,10 +326,6 @@ OrderManager::process_signal(const v1::StrategySignal &signal) {
   id_mapper_->add_mapping(local_id, broker_id);
   open_order_count_++;
 
-  // Signal the dispatch thread to retry any fills that arrived before the
-  // mapping was established (the deferred fill race window)
-  enqueue(RetryFillsEvent{});
-
   if (auto r = order_store_->update_broker_id(local_id, broker_id); !r) {
     journal_->log(Event::ERROR_OCCURRED, r.error().message_, local_id);
     return std::unexpected(r.error());
@@ -418,7 +412,6 @@ OrderManager::process_signal(const v1::ReplaceSignal &signal) {
   }
 
   id_mapper_->add_mapping(new_local_id, new_broker_id);
-  enqueue(RetryFillsEvent{});
 
   journal_->log(Event::ORDER_SUBMITTED,
                 std::format("Old: {} -> New: {} (Broker: {})", old_local_id,
