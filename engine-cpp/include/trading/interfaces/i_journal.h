@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <iomanip>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace quarcc {
@@ -33,6 +34,49 @@ enum class Event : std::uint8_t {
   ORDER_FILLED = 17,
   ORDER_PARTIALLY_FILLED = 18
 };
+
+inline Event event_from_string(const char *s) {
+  if (!s)
+    return Event::ERROR_OCCURRED;
+  std::string_view sv{s};
+  if (sv == "ORDER_CREATED")
+    return Event::ORDER_CREATED;
+  if (sv == "ORDER_VALIDATED")
+    return Event::ORDER_VALIDATED;
+  if (sv == "ORDER_REJECTED")
+    return Event::ORDER_REJECTED;
+  if (sv == "ORDER_SUBMITTED")
+    return Event::ORDER_SUBMITTED;
+  if (sv == "ORDER_ACCEPTED")
+    return Event::ORDER_ACCEPTED;
+  if (sv == "ORDER_CANCELLED")
+    return Event::ORDER_CANCELLED;
+  if (sv == "ORDER_REPLACED")
+    return Event::ORDER_REPLACED;
+  if (sv == "ORDER_EXPIRED")
+    return Event::ORDER_EXPIRED;
+  if (sv == "KILL_SWITCH_ACTIVATED")
+    return Event::KILL_SWITCH_ACTIVATED;
+  if (sv == "SYSTEM_STARTED")
+    return Event::SYSTEM_STARTED;
+  if (sv == "SYSTEM_STOPPED")
+    return Event::SYSTEM_STOPPED;
+  if (sv == "GATEWAY_CONNECTED")
+    return Event::GATEWAY_CONNECTED;
+  if (sv == "GATEWAY_DISCONNECTED")
+    return Event::GATEWAY_DISCONNECTED;
+  if (sv == "SIGNAL_RECEIVED")
+    return Event::SIGNAL_RECEIVED;
+  if (sv == "SIGNAL_PROCESSED")
+    return Event::SIGNAL_PROCESSED;
+  if (sv == "SIGNAL_IGNORED")
+    return Event::SIGNAL_IGNORED;
+  if (sv == "ORDER_FILLED")
+    return Event::ORDER_FILLED;
+  if (sv == "ORDER_PARTIALLY_FILLED")
+    return Event::ORDER_PARTIALLY_FILLED;
+  return Event::ERROR_OCCURRED;
+}
 
 inline const char *event_to_string(Event event) {
   switch (event) {

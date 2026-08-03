@@ -44,7 +44,7 @@ void SQLiteOrderStore::create_schema() {
       quantity REAL NOT NULL,
       price REAL,
       order_type INTEGER NOT NULL,
-      status INTEGER NOT NULL,
+      status TEXT NOT NULL,
       time_in_force INTEGER NOT NULL,
       account_id TEXT NOT NULL,
       strategy_id TEXT NOT NULL,
@@ -110,7 +110,8 @@ SQLiteOrderStore::store_order(const StoredOrder &stored_order) {
   sqlite3_bind_double(stmt, 5, order.quantity());
   sqlite3_bind_double(stmt, 6, order.price());
   sqlite3_bind_int(stmt, 7, static_cast<int>(order.type()));
-  sqlite3_bind_int(stmt, 8, static_cast<int>(stored_order.status));
+  sqlite3_bind_text(stmt, 8, order_status_to_string(stored_order.status), -1,
+                    SQLITE_STATIC);
   sqlite3_bind_int(stmt, 9, static_cast<int>(order.time_in_force()));
   sqlite3_bind_text(stmt, 10, order.account_id().c_str(), -1, SQLITE_TRANSIENT);
   sqlite3_bind_text(stmt, 11, order.strategy_id().c_str(), -1,
@@ -137,6 +138,7 @@ SQLiteOrderStore::store_order(const StoredOrder &stored_order) {
   return std::monostate{};
 }
 
+// TODO: method to get updated_at should match the one for created_at
 Result<std::monostate>
 SQLiteOrderStore::update_order_status(const std::string &local_id,
                                       OrderStatus new_status) {
@@ -157,7 +159,8 @@ SQLiteOrderStore::update_order_status(const std::string &local_id,
                                  ErrorType::Error});
   }
 
-  sqlite3_bind_int(stmt, 1, static_cast<int>(new_status));
+  sqlite3_bind_text(stmt, 1, order_status_to_string(new_status), -1,
+                    SQLITE_STATIC);
   sqlite3_bind_text(stmt, 2, local_id.c_str(), -1, SQLITE_TRANSIENT);
 
   rc = sqlite3_step(stmt);
@@ -241,7 +244,8 @@ Result<std::monostate> SQLiteOrderStore::apply_fill(const std::string &local_id,
   sqlite3_bind_double(stmt, 3, filled_quantity);
   sqlite3_bind_double(stmt, 4, filled_quantity);
   sqlite3_bind_double(stmt, 5, filled_quantity);
-  sqlite3_bind_int(stmt, 6, static_cast<int>(new_status));
+  sqlite3_bind_text(stmt, 6, order_status_to_string(new_status), -1,
+                    SQLITE_STATIC);
   sqlite3_bind_text(stmt, 7, local_id.c_str(), -1, SQLITE_TRANSIENT);
 
   rc = sqlite3_step(stmt);
@@ -268,7 +272,8 @@ StoredOrder SQLiteOrderStore::parse_order(sqlite3_stmt *stmt) {
     stored.broker_id = broker_id;
   }
 
-  stored.status = static_cast<OrderStatus>(sqlite3_column_int(stmt, 2));
+  stored.status = order_status_from_string(
+      reinterpret_cast<const char *>(sqlite3_column_text(stmt, 2)));
   stored.created_at =
       reinterpret_cast<const char *>(sqlite3_column_text(stmt, 3));
 
@@ -342,10 +347,16 @@ std::vector<StoredOrder> SQLiteOrderStore::get_open_orders() {
     return orders;
   }
 
-  sqlite3_bind_int(stmt, 1, static_cast<int>(OrderStatus::PENDING_SUBMISSION));
-  sqlite3_bind_int(stmt, 2, static_cast<int>(OrderStatus::SUBMITTED));
-  sqlite3_bind_int(stmt, 3, static_cast<int>(OrderStatus::ACCEPTED));
-  sqlite3_bind_int(stmt, 4, static_cast<int>(OrderStatus::PARTIALLY_FILLED));
+  sqlite3_bind_text(stmt, 1,
+                    order_status_to_string(OrderStatus::PENDING_SUBMISSION), -1,
+                    SQLITE_STATIC);
+  sqlite3_bind_text(stmt, 2, order_status_to_string(OrderStatus::SUBMITTED), -1,
+                    SQLITE_STATIC);
+  sqlite3_bind_text(stmt, 3, order_status_to_string(OrderStatus::ACCEPTED), -1,
+                    SQLITE_STATIC);
+  sqlite3_bind_text(stmt, 4,
+                    order_status_to_string(OrderStatus::PARTIALLY_FILLED), -1,
+                    SQLITE_STATIC);
 
   while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
     orders.push_back(parse_order(stmt));
@@ -376,7 +387,7 @@ SQLiteOrderStore::get_orders_by_status(OrderStatus status) {
     return orders;
   }
 
-  sqlite3_bind_int(stmt, 1, static_cast<int>(status));
+  sqlite3_bind_text(stmt, 1, order_status_to_string(status), -1, SQLITE_STATIC);
 
   while ((rc = sqlite3_step(stmt)) == SQLITE_ROW) {
     orders.push_back(parse_order(stmt));
