@@ -7,12 +7,18 @@
 #include <trading/persistence/sqlite_journal.h>
 #include <trading/persistence/sqlite_order_store.h>
 
+#include <csignal>
+#include <pthread.h>
 #include <shared_mutex>
+#include <thread>
 
 namespace quarcc {
 
 void TradingEngine::Run(const char *config_path) {
   GOOGLE_PROTOBUF_VERIFY_VERSION;
+
+  // Make sure no threads are spawned before this function is called
+  signal_handler();
 
   server_ = std::make_unique<gRPCServer>(config_path, *this);
 
@@ -26,6 +32,7 @@ void TradingEngine::Run(const char *config_path) {
   }
 
   server_->shutdown();
+  cancel_all("Shutting down");
   feed_registry_.stop_all();
   google::protobuf::ShutdownProtobufLibrary();
 }
@@ -113,6 +120,39 @@ TradingEngine::create_strategy(const v1::RegisterStrategyRequest &strat) {
   }
 
   return std::monostate{};
+}
+
+void TradingEngine::cancel_all(const std::string &reason,
+                               const std::string &intiated_by) {
+  for (auto &manager : managers_) {
+    manager.second->cancel_all(reason, intiated_by);
+  }
+}
+
+void TradingEngine::signal_handler() {
+  // Block SIGINT and SIGTERM here
+  // All threads spawned after this inherit the
+  // mask
+  sigset_t sig_mask;
+  sigemptyset(&sig_mask);
+  sigaddset(&sig_mask, SIGINT);
+  sigaddset(&sig_mask, SIGTERM);
+  pthread_sigmask(SIG_BLOCK, &sig_mask, nullptr);
+
+  // SIGPIPE can fire on any gRPC write to a disconnected client
+  // so just ignore it
+  std::signal(SIGPIPE, SIG_IGN);
+
+  std::thread([this, sig_mask]() {
+    int sig = 0;
+    sigwait(&sig_mask, &sig);
+    spdlog::info("Received signal {}, initiating shutdown", sig);
+    {
+      std::lock_guard lk{run_mu_};
+      running_ = false;
+    }
+    run_cv_.notify_one();
+  }).detach();
 }
 
 // This is the epic dynamic strategy registration function

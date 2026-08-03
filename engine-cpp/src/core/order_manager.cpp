@@ -129,7 +129,7 @@ void OrderManager::handle_fill(const v1::ExecutionReport &fill) {
   if (!local_id_opt) {
     // id_mapper_ didn't register the order's id yet, so we'll handle the fill
     // later
-    deferred_fills_.push_back(fill);
+    spdlog::error("No more RetryFills, this shouldn't be happening");
     return;
   }
   const std::string &local_id = *local_id_opt;
@@ -244,16 +244,6 @@ void OrderManager::set_fill_sink(
 void OrderManager::clear_fill_sink() {
   std::lock_guard lk{fill_sink_mu_};
   fill_sink_ = nullptr;
-}
-
-void OrderManager::handle_retry_fills() {
-  // Drain deferred_fills_ into handle_fill(). Fills that still can't resolve
-  // (unlikely but possible if multiple orders are in flight) go back into
-  // deferred_fills_ via handle_fill()'s defer path
-  auto to_retry = std::move(deferred_fills_);
-  deferred_fills_.clear();
-  for (const auto &fill : to_retry)
-    handle_fill(fill);
 }
 
 // All the processing of the signals that runs concurrently to the dispatch

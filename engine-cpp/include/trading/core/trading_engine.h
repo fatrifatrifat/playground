@@ -29,6 +29,9 @@ private:
   // RegisterStrategy calls this under a unique_lock)
   Result<std::monostate>
   create_strategy(const v1::RegisterStrategyRequest &strat);
+  void cancel_all(const std::string &reason,
+                  const std::string &intiated_by = "SIGINT/SIGTERM");
+  void signal_handler();
 
 private:
   // IExecutionServiceHandler functions

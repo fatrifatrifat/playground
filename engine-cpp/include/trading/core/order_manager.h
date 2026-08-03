@@ -91,7 +91,6 @@ private:
   void handle_fill(const v1::ExecutionReport &fill);
   void handle_bar(const Bar &bar);
   void handle_tick(const Tick &tick);
-  void handle_retry_fills();
 
 private:
   std::string account_id_;
