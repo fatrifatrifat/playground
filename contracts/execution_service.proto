@@ -112,6 +112,12 @@ enum Gateway {
   // ...
 }
 
+message RiskConfigMessage {
+  double max_quantity = 1;
+  uint64 max_open_orders = 2;
+  double daily_pnl_limit = 3;
+}
+
 message RegisterStrategyRequest {
   string strategy_id = 1;
   string account_id = 2;
@@ -120,10 +126,11 @@ message RegisterStrategyRequest {
   optional AdapterConfigMessage adapter = 4;
   // Strategies without market data subscriptions omit this
   optional MarketDataConfigMessage market_data = 5;
+  optional RiskConfigMessage risk_params = 6;
   // if empty, it defaults to "<strategy_id>_trading_{journal,orders}.db"
   // Might change it later if I decide to move everything in 1 DB
-  string journal_db = 6;
-  string orders_db = 7;
+  string journal_db = 7;
+  string orders_db = 8;
 }
 
 message RegisterStrategyResponse {

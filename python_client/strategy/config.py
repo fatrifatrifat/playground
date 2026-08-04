@@ -37,6 +37,15 @@ class AdapterConfig:
 
 
 @dataclass
+class RiskConfig:
+    """Parameters for risk management"""
+
+    max_quantity: float = 0.0
+    max_open_orders: int = 0
+    daily_pnl_limit: float = 0.0
+
+
+@dataclass
 class StrategyConfig:
     class Gateway(StrEnum):
         GRPC_ADAPTER = "grpc_adapter"
@@ -49,6 +58,7 @@ class StrategyConfig:
     gateway: Gateway
     market_data: Optional[MarketData] = None
     adapter: Optional[AdapterConfig] = None
+    risk_manager: Optional[RiskConfig] = None
 
     def to_proto(self):
         """Convert to a RegisterStrategyRequest protobuf message."""
@@ -69,11 +79,13 @@ class StrategyConfig:
         req.account_id = self.account_id
         req.gateway = _gateway_map[self.gateway]
 
+        # Adapter config
         if self.adapter is not None:
             req.adapter.venue = self.adapter.venue
             req.adapter.credentials_path = self.adapter.credentials_path
             req.adapter.port = self.adapter.port
 
+        # Market data config
         if self.market_data is not None:
             req.market_data.feed = _feed_map[self.market_data.feed]
             for sub in self.market_data.subscriptions:
@@ -81,5 +93,11 @@ class StrategyConfig:
                 s.symbol = sub.symbol
                 if sub.period:
                     s.period = sub.period
+
+        # Risk config
+        if self.risk_manager is not None:
+            req.risk_params.max_quantity = self.risk_manager.max_quantity
+            req.risk_params.max_open_orders = self.risk_manager.max_open_orders
+            req.risk_params.daily_pnl_limit = self.risk_manager.daily_pnl_limit
 
         return req

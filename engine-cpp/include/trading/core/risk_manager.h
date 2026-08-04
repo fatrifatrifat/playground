@@ -1,5 +1,6 @@
 #pragma once
 #include <cstddef>
+#include <spdlog/spdlog.h>
 #include <trading/utils/result.h>
 #include <variant>
 
@@ -26,6 +27,7 @@ public:
           .type_ = ErrorType::FailedOrder,
       });
     }
+
     if (limits_.max_open_orders && open_order > limits_.max_open_orders) {
       return std::unexpected(Error{
           .message_ = "Max open order amount limit exceeded",
@@ -40,7 +42,7 @@ public:
       });
     }
 
-    return {};
+    return std::monostate{};
   }
 
 private:

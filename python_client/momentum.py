@@ -1,5 +1,11 @@
 from strategy.base_strategy import BaseStrategy
-from strategy.config import MarketData, StrategyConfig, Subscription, AdapterConfig
+from strategy.config import (
+    AdapterConfig,
+    MarketData,
+    RiskConfig,
+    StrategyConfig,
+    Subscription,
+)
 
 tick_counter = 0
 bar_counter = 0
@@ -36,7 +42,7 @@ class MomentumStrategy(BaseStrategy):
 config = StrategyConfig(
     strategy_id="momentum_1",
     account_id="acct_001",
-    gateway=StrategyConfig.Gateway.GRPC_ADAPTER,
+    gateway=StrategyConfig.Gateway.PAPER_TRADING,
     market_data=MarketData(
         MarketData.Feed.SIMULATED,
         [
@@ -47,6 +53,10 @@ config = StrategyConfig(
         "paper",
         "python_client/creds.txt",
         50052,
+    ),
+    risk_manager=RiskConfig(
+        max_quantity=0.5,
+        max_open_orders=3,
     ),
 )
 MomentumStrategy(config).run()

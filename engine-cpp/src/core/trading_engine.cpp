@@ -47,6 +47,7 @@ TradingEngine::create_strategy(const v1::RegisterStrategyRequest &strat) {
   if (managers_.contains(strat.strategy_id()))
     return std::monostate{};
 
+  // Setting up gateway
   std::unique_ptr<IExecutionGateway> gateway;
 
   if (strat.gateway() == v1::Gateway::GrpcAdapterGW) {
@@ -58,10 +59,10 @@ TradingEngine::create_strategy(const v1::RegisterStrategyRequest &strat) {
 
     try {
       auto conn = adapter_manager_.get_or_create(
-        strat.adapter().venue(), strat.account_id(), strat.adapter());
+          strat.adapter().venue(), strat.account_id(), strat.adapter());
       gateway = std::make_unique<GrpcGateway>(strat.strategy_id(), conn);
-    } catch (const std::runtime_error& err) {
-      return std::unexpected { Error { err.what(), ErrorType::Error } };
+    } catch (const std::runtime_error &err) {
+      return std::unexpected{Error{err.what(), ErrorType::Error}};
     }
 
   } else if (strat.gateway() == v1::Gateway::AlpacaGW) {
@@ -80,24 +81,34 @@ TradingEngine::create_strategy(const v1::RegisterStrategyRequest &strat) {
         ErrorType::Error});
   }
 
-  std::unique_ptr<OrderManager> om_ptr;
+  // Setting up risk config
+  {
+    RiskLimits risk_limit{};
+    if (strat.has_risk_params()) {
+      risk_limit =
+          RiskLimits{.max_quantity = strat.risk_params().max_quantity(),
+                     .max_open_orders = strat.risk_params().max_open_orders(),
+                     .daily_pnl_limit = strat.risk_params().daily_pnl_limit()};
+    }
 
-  try{
-    om_ptr = OrderManager::create_order_manager(
-        strat.strategy_id(), strat.account_id(),
-        std::make_unique<PositionKeeper>(), std::move(gateway),
-        std::make_unique<SQLiteJournal>(strat.strategy_id()),
-        std::make_unique<SQLiteOrderStore>(strat.strategy_id()),
-        std::make_unique<RiskManager>(RiskLimits{}));
-  } catch (const std::exception& err) {
-    return std::unexpected { Error { std::string { err.what() } + " (Occured when creating a new order manager)", ErrorType::Error } };
+    try {
+      managers_.emplace(
+          StrategyId{strat.strategy_id()},
+          OrderManager::create_order_manager(
+              strat.strategy_id(), strat.account_id(),
+              std::make_unique<PositionKeeper>(), std::move(gateway),
+              std::make_unique<SQLiteJournal>(strat.strategy_id()),
+              std::make_unique<SQLiteOrderStore>(strat.strategy_id()),
+              std::make_unique<RiskManager>(std::move(risk_limit))));
+    } catch (const std::exception &err) {
+      return std::unexpected{
+          Error{std::string{err.what()} +
+                    " (Occured when creating a new order manager)",
+                ErrorType::Error}};
+    }
   }
 
-  try {
-    managers_.emplace(StrategyId{strat.strategy_id()}, std::move(om_ptr));
-  } catch (const std::exception& err) {
-    return std::unexpected { Error { std::string { err.what() } + " (Occured when trying to emplace a new order manager)", ErrorType::Error} };
-  }
+  // Setting up market data feed
   if (strat.has_market_data()) {
     OrderManager *om = managers_.at(strat.strategy_id()).get();
     const FeedKey feed_key{strat.market_data().feed(), strat.account_id()};
@@ -132,14 +143,18 @@ TradingEngine::create_strategy(const v1::RegisterStrategyRequest &strat) {
             feed_key, sub.symbol(),
             sub.has_period() ? std::make_optional(sub.period()) : std::nullopt,
             om);
-      } catch (const std::exception& err) {
-        return std::unexpected { Error { std::string { err.what() } + " (Error occured while registering symbol: " + sub.symbol() + ")", ErrorType::Error} };
+      } catch (const std::exception &err) {
+        return std::unexpected{Error{
+            std::string{err.what()} +
+                " (Error occured while registering symbol: " + sub.symbol() +
+                ")",
+            ErrorType::Error}};
       }
     }
   }
 
   return std::monostate{};
-}
+} // namespace quarcc
 
 void TradingEngine::cancel_all(const std::string &reason,
                                const std::string &intiated_by) {
