@@ -94,7 +94,7 @@ TradingEngine::create_strategy(const v1::RegisterStrategyRequest &strat) {
   }
 
   try {
-    managers_.emplace(StrategyId{strat.strategy_id()}, om_ptr);
+    managers_.emplace(StrategyId{strat.strategy_id()}, std::move(om_ptr));
   } catch (const std::exception& err) {
     return std::unexpected { Error { std::string { err.what() } + " (Occured when trying to emplace a new order manager)", ErrorType::Error} };
   }

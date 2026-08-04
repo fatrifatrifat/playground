@@ -4,6 +4,7 @@
 #include <trading/utils/event_queue.h>
 
 #include <iostream>
+#include <filesystem>
 
 namespace quarcc {
 
