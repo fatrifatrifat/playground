@@ -2,6 +2,7 @@
 
 #include "order.pb.h"
 #include <optional>
+#include <string_view>
 #include <trading/utils/result.h>
 #include <variant>
 #include <vector>
@@ -19,6 +20,29 @@ enum class OrderStatus : std::uint8_t {
   REJECTED = 7,
   EXPIRED = 8
 };
+
+inline OrderStatus order_status_from_string(const char *s) {
+  if (!s)
+    return OrderStatus::PENDING_SUBMISSION;
+  std::string_view sv{s};
+  if (sv == "SUBMITTED")
+    return OrderStatus::SUBMITTED;
+  if (sv == "ACCEPTED")
+    return OrderStatus::ACCEPTED;
+  if (sv == "PARTIALLY_FILLED")
+    return OrderStatus::PARTIALLY_FILLED;
+  if (sv == "FILLED")
+    return OrderStatus::FILLED;
+  if (sv == "CANCELLED")
+    return OrderStatus::CANCELLED;
+  if (sv == "REPLACED")
+    return OrderStatus::REPLACED;
+  if (sv == "REJECTED")
+    return OrderStatus::REJECTED;
+  if (sv == "EXPIRED")
+    return OrderStatus::EXPIRED;
+  return OrderStatus::PENDING_SUBMISSION;
+}
 
 inline const char *order_status_to_string(OrderStatus status) {
   switch (status) {

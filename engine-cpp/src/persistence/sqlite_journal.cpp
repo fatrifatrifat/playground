@@ -6,8 +6,9 @@
 
 namespace quarcc {
 
-SQLiteJournal::SQLiteJournal(const std::string& db_path) {
-  std::string full_path = (db_path == ":memory:") ? db_path : std::format("{}_journal.db", db_path);
+SQLiteJournal::SQLiteJournal(const std::string &db_path) {
+  std::string full_path =
+      (db_path == ":memory:") ? db_path : std::format("{}_journal.db", db_path);
   int rc = sqlite3_open(full_path.c_str(), &db_);
   if (rc != SQLITE_OK) [[unlikely]] {
     std::string error = sqlite3_errmsg(db_);
@@ -17,7 +18,7 @@ SQLiteJournal::SQLiteJournal(const std::string& db_path) {
   sqlite3_exec(db_, "PRAGMA journal_mode=WAL;", nullptr, nullptr, nullptr);
   sqlite3_exec(db_, "PRAGMA synchronous=NORMAL;", nullptr, nullptr, nullptr);
   sqlite3_exec(db_, "PRAGMA cache_size=-8000;", nullptr, nullptr,
-               nullptr);  // 8MB cache
+               nullptr); // 8MB cache
 
   create_schema();
 }
@@ -30,11 +31,11 @@ SQLiteJournal::~SQLiteJournal() {
 }
 
 void SQLiteJournal::create_schema() {
-  const char* sql = R"(
+  const char *sql = R"(
     CREATE TABLE IF NOT EXISTS journal (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       timestamp TEXT NOT NULL,
-      event_type INTEGER NOT NULL,
+      event_type TEXT NOT NULL,
       data TEXT NOT NULL,
       correlation_id TEXT,
       UNIQUE(timestamp, correlation_id, event_type)
@@ -45,7 +46,7 @@ void SQLiteJournal::create_schema() {
     CREATE INDEX IF NOT EXISTS idx_correlation_id ON journal(correlation_id);
   )";
 
-  char* err_msg = nullptr;
+  char *err_msg = nullptr;
   int rc = sqlite3_exec(db_, sql, nullptr, nullptr, &err_msg);
 
   if (rc != SQLITE_OK) [[unlikely]] {
@@ -55,15 +56,16 @@ void SQLiteJournal::create_schema() {
   }
 }
 
-void SQLiteJournal::log(Event event, const std::string& data, const std::string& correlation_id) {
+void SQLiteJournal::log(Event event, const std::string &data,
+                        const std::string &correlation_id) {
   std::lock_guard lock(mutex_);
 
-  const char* sql = R"(
+  const char *sql = R"(
     INSERT INTO journal (timestamp, event_type, data, correlation_id) 
     VALUES (?, ?, ?, ?)
   )";
 
-  sqlite3_stmt* stmt = nullptr;
+  sqlite3_stmt *stmt = nullptr;
   int rc = sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr);
 
   if (rc != SQLITE_OK) [[unlikely]] {
@@ -81,7 +83,7 @@ void SQLiteJournal::log(Event event, const std::string& data, const std::string&
   }
 
   sqlite3_bind_text(stmt, 1, timestamp_str.c_str(), -1, SQLITE_TRANSIENT);
-  sqlite3_bind_int(stmt, 2, static_cast<int>(event));
+  sqlite3_bind_text(stmt, 2, event_to_string(event), -1, SQLITE_STATIC);
   sqlite3_bind_text(stmt, 3, data.c_str(), -1, SQLITE_TRANSIENT);
 
   if (!correlation_id.empty()) {
@@ -101,7 +103,7 @@ void SQLiteJournal::log(Event event, const std::string& data, const std::string&
 
 Result<std::vector<LogEntry>>
 SQLiteJournal::get_history(Timestamp from, Timestamp to,
-                                                 std::optional<Event> event_filter) {
+                            std::optional<Event> event_filter) {
   std::lock_guard lock(mutex_);
   std::vector<LogEntry> entries;
 
@@ -117,7 +119,7 @@ SQLiteJournal::get_history(Timestamp from, Timestamp to,
 
   sql += " ORDER BY id ASC";
 
-  sqlite3_stmt* stmt = nullptr;
+  sqlite3_stmt *stmt = nullptr;
   int rc = sqlite3_prepare_v2(db_, sql.c_str(), -1, &stmt, nullptr);
 
   if (rc != SQLITE_OK) [[unlikely]] {
@@ -144,7 +146,8 @@ SQLiteJournal::get_history(Timestamp from, Timestamp to,
   sqlite3_bind_text(stmt, 2, to_str.c_str(), -1, SQLITE_TRANSIENT);
 
   if (event_filter) {
-    sqlite3_bind_int(stmt, 3, static_cast<int>(*event_filter));
+    sqlite3_bind_text(stmt, 3, event_to_string(*event_filter), -1,
+                      SQLITE_STATIC);
   }
 
   // Fetch results
@@ -152,15 +155,19 @@ SQLiteJournal::get_history(Timestamp from, Timestamp to,
     LogEntry entry;
     entry.id = sqlite3_column_int64(stmt, 0);
 
-    const char* timestamp_str = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
+    const char *timestamp_str =
+        reinterpret_cast<const char *>(sqlite3_column_text(stmt, 1));
     entry.timestamp = LogEntry::string_to_timestamp(timestamp_str);
 
-    entry.event_type = static_cast<Event>(sqlite3_column_int(stmt, 2));
+    entry.event_type = event_from_string(
+        reinterpret_cast<const char *>(sqlite3_column_text(stmt, 2)));
 
-    const char* data_str = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 3));
+    const char *data_str =
+        reinterpret_cast<const char *>(sqlite3_column_text(stmt, 3));
     entry.data = data_str ? data_str : "";
 
-    const char* corr_id = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 4));
+    const char *corr_id =
+        reinterpret_cast<const char *>(sqlite3_column_text(stmt, 4));
     entry.correlation_id = corr_id ? corr_id : "";
 
     entries.push_back(std::move(entry));
@@ -170,18 +177,19 @@ SQLiteJournal::get_history(Timestamp from, Timestamp to,
   return entries;
 }
 
-std::vector<LogEntry> SQLiteJournal::get_order_history(const std::string& order_id) {
+std::vector<LogEntry>
+SQLiteJournal::get_order_history(const std::string &order_id) {
   std::lock_guard lock(mutex_);
   std::vector<LogEntry> entries;
 
-  const char* sql = R"(
+  const char *sql = R"(
     SELECT id, timestamp, event_type, data, correlation_id 
     FROM journal 
     WHERE correlation_id = ?
     ORDER BY id ASC
   )";
 
-  sqlite3_stmt* stmt = nullptr;
+  sqlite3_stmt *stmt = nullptr;
   int rc = sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr);
 
   if (rc != SQLITE_OK) [[unlikely]] {
@@ -195,15 +203,19 @@ std::vector<LogEntry> SQLiteJournal::get_order_history(const std::string& order_
     LogEntry entry;
     entry.id = sqlite3_column_int64(stmt, 0);
 
-    const char* timestamp_str = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
+    const char *timestamp_str =
+        reinterpret_cast<const char *>(sqlite3_column_text(stmt, 1));
     entry.timestamp = LogEntry::string_to_timestamp(timestamp_str);
 
-    entry.event_type = static_cast<Event>(sqlite3_column_int(stmt, 2));
+    entry.event_type = event_from_string(
+        reinterpret_cast<const char *>(sqlite3_column_text(stmt, 2)));
 
-    const char* data_str = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 3));
+    const char *data_str =
+        reinterpret_cast<const char *>(sqlite3_column_text(stmt, 3));
     entry.data = data_str ? data_str : "";
 
-    const char* corr_id = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 4));
+    const char *corr_id =
+        reinterpret_cast<const char *>(sqlite3_column_text(stmt, 4));
     entry.correlation_id = corr_id ? corr_id : "";
 
     entries.push_back(std::move(entry));
@@ -218,4 +230,4 @@ void SQLiteJournal::flush() {
   sqlite3_wal_checkpoint(db_, nullptr);
 }
 
-}  // namespace quarcc
+} // namespace quarcc
