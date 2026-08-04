@@ -88,7 +88,8 @@ Start the engine (from the repo root):
 In a separate terminal, run the Python client:
 
 ```bash
-cd python_client
+bash ./scripts/generate_protos_python.sh
+cd python_client/
 pip install -r requirements.txt
 python3 momentum.py
 ```
