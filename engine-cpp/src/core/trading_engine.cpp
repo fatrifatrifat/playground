@@ -73,16 +73,23 @@ TradingEngine::create_strategy(const v1::RegisterStrategyRequest &strat) {
         ErrorType::Error});
   }
 
+  std::unique_ptr<OrderManager> om_ptr;
+
   try {
-    managers_.emplace(StrategyId{strat.strategy_id()},
-                    OrderManager::create_order_manager(
+    om_ptr = OrderManager::create_order_manager(
                         strat.account_id(), std::make_unique<PositionKeeper>(),
                         std::move(gateway),
                         std::make_unique<SQLiteJournal>(strat.strategy_id()),
                         std::make_unique<SQLiteOrderStore>(strat.strategy_id()),
-                        std::make_unique<RiskManager>(RiskLimits{})));
-  } catch (...) {
-    return std::unexpected { Error { "Error creating new order manager", ErrorType::Error} };
+                        std::make_unique<RiskManager>(RiskLimits{}));
+  } catch (const std::exception& err) {
+    return std::unexpected { Error { std::string { err.what() } + " (Occured when creating a new order manager)", ErrorType::Error } };
+  }
+
+  try {
+    managers_.emplace(StrategyId{strat.strategy_id()}, om_ptr);
+  } catch (const std::exception& err) {
+    return std::unexpected { Error { std::string { err.what() } + " (Occured when trying to emplace a new order manager)", ErrorType::Error} };
   }
   if (strat.has_market_data()) {
     OrderManager *om = managers_.at(strat.strategy_id()).get();
