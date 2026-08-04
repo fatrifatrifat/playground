@@ -22,7 +22,11 @@ TEST(SimulatedFeedTest, DispatchesBarsByPeriodWithoutTicksForBarOnlySymbol) {
     ++bars;
   });
 
-  feed.subscribe("AAPL", BarPeriod{"1s"});
+  try {
+    feed.subscribe("AAPL", BarPeriod{"1s"});
+  } catch (...) {
+    FAIL();
+  }
   feed.start();
   std::this_thread::sleep_for(std::chrono::milliseconds(1600));
   feed.stop();
@@ -42,7 +46,11 @@ TEST(SimulatedFeedTest, DispatchesTicksOnlyWhenNoBarPeriodIsSubscribed) {
   });
   feed.set_bar_handler([&](const Bar &) { ++bars; });
 
-  feed.subscribe("MSFT", std::nullopt);
+  try {
+    feed.subscribe("MSFT", std::nullopt);
+  } catch (...) {
+    FAIL();
+  }
   feed.start();
   std::this_thread::sleep_for(std::chrono::milliseconds(800));
   feed.stop();

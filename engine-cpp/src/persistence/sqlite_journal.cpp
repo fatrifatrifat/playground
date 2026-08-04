@@ -74,7 +74,13 @@ void SQLiteJournal::log(Event event, const std::string &data,
   }
 
   auto now = LogEntry::now();
-  std::string timestamp_str = LogEntry::timestamp_to_string(now);
+  std::string timestamp_str { "UNKNOWN" };
+  
+  try {
+    timestamp_str = LogEntry::timestamp_to_string(now);
+  } catch (const std::exception& err) {
+    spdlog::error(std::string { err.what() } + " (Error occured when converting timestamp to string during journal logging)\n");
+  }
 
   sqlite3_bind_text(stmt, 1, timestamp_str.c_str(), -1, SQLITE_TRANSIENT);
   sqlite3_bind_text(stmt, 2, event_to_string(event), -1, SQLITE_STATIC);
@@ -95,9 +101,9 @@ void SQLiteJournal::log(Event event, const std::string &data,
   sqlite3_finalize(stmt);
 }
 
-std::vector<LogEntry>
+Result<std::vector<LogEntry>>
 SQLiteJournal::get_history(Timestamp from, Timestamp to,
-                           std::optional<Event> event_filter) {
+                            std::optional<Event> event_filter) {
   std::lock_guard lock(mutex_);
   std::vector<LogEntry> entries;
 
@@ -121,9 +127,21 @@ SQLiteJournal::get_history(Timestamp from, Timestamp to,
     return entries;
   }
 
-  std::string from_str = LogEntry::timestamp_to_string(from);
-  std::string to_str = LogEntry::timestamp_to_string(to);
+  std::string from_str;
+  std::string to_str;
 
+  try {
+    from_str = LogEntry::timestamp_to_string(from);
+  } catch (const std::exception& err) {
+    return std::unexpected { Error { std::string { err.what() } + " (Occured when converting timestamp to string : from)", ErrorType::Error } };
+  }
+
+  try {
+    to_str = LogEntry::timestamp_to_string(to);
+  } catch (const std::exception& err) {
+    return std::unexpected { Error { std::string { err.what() } + " (Occured when converting timestamp to string : to)", ErrorType::Error} };
+  }
+  
   sqlite3_bind_text(stmt, 1, from_str.c_str(), -1, SQLITE_TRANSIENT);
   sqlite3_bind_text(stmt, 2, to_str.c_str(), -1, SQLITE_TRANSIENT);
 

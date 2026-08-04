@@ -7,6 +7,7 @@
 
 namespace quarcc {
 
+//  SQLiteOrderStore possibly throws on construction
 struct OrderStoreFixture : public testing::Test {
   SQLiteOrderStore store{":memory:"};
 };

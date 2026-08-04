@@ -56,9 +56,13 @@ TradingEngine::create_strategy(const v1::RegisterStrategyRequest &strat) {
               "' uses gateway 'grpc_adapter' but has no 'adapter' config block",
           ErrorType::Error});
 
-    auto conn = adapter_manager_.get_or_create(
+    try {
+      auto conn = adapter_manager_.get_or_create(
         strat.adapter().venue(), strat.account_id(), strat.adapter());
-    gateway = std::make_unique<GrpcGateway>(strat.strategy_id(), conn);
+      gateway = std::make_unique<GrpcGateway>(strat.strategy_id(), conn);
+    } catch (const std::runtime_error& err) {
+      return std::unexpected { Error { err.what(), ErrorType::Error } };
+    }
 
   } else if (strat.gateway() == v1::Gateway::AlpacaGW) {
 #if TRADING_ENABLE_ALPACA_SDK
@@ -76,14 +80,24 @@ TradingEngine::create_strategy(const v1::RegisterStrategyRequest &strat) {
         ErrorType::Error});
   }
 
-  managers_.emplace(StrategyId{strat.strategy_id()},
-                    OrderManager::create_order_manager(
-                        strat.strategy_id(), strat.account_id(),
-                        std::make_unique<PositionKeeper>(), std::move(gateway),
-                        std::make_unique<SQLiteJournal>(strat.strategy_id()),
-                        std::make_unique<SQLiteOrderStore>(strat.strategy_id()),
-                        std::make_unique<RiskManager>(RiskLimits{})));
+  std::unique_ptr<OrderManager> om_ptr;
 
+  try{
+    om_ptr = OrderManager::create_order_manager(
+        strat.strategy_id(), strat.account_id(),
+        std::make_unique<PositionKeeper>(), std::move(gateway),
+        std::make_unique<SQLiteJournal>(strat.strategy_id()),
+        std::make_unique<SQLiteOrderStore>(strat.strategy_id()),
+        std::make_unique<RiskManager>(RiskLimits{}));
+  } catch (const std::exception& err) {
+    return std::unexpected { Error { std::string { err.what() } + " (Occured when creating a new order manager)", ErrorType::Error } };
+  }
+
+  try {
+    managers_.emplace(StrategyId{strat.strategy_id()}, std::move(om_ptr));
+  } catch (const std::exception& err) {
+    return std::unexpected { Error { std::string { err.what() } + " (Occured when trying to emplace a new order manager)", ErrorType::Error} };
+  }
   if (strat.has_market_data()) {
     OrderManager *om = managers_.at(strat.strategy_id()).get();
     const FeedKey feed_key{strat.market_data().feed(), strat.account_id()};
@@ -112,11 +126,16 @@ TradingEngine::create_strategy(const v1::RegisterStrategyRequest &strat) {
       }
     }
 
-    for (const auto &sub : strat.market_data().subscriptions())
-      feed_registry_.register_subscription(
-          feed_key, sub.symbol(),
-          sub.has_period() ? std::make_optional(sub.period()) : std::nullopt,
-          om);
+    for (const auto &sub : strat.market_data().subscriptions()) {
+      try {
+        feed_registry_.register_subscription(
+            feed_key, sub.symbol(),
+            sub.has_period() ? std::make_optional(sub.period()) : std::nullopt,
+            om);
+      } catch (const std::exception& err) {
+        return std::unexpected { Error { std::string { err.what() } + " (Error occured while registering symbol: " + sub.symbol() + ")", ErrorType::Error} };
+      }
+    }
   }
 
   return std::monostate{};

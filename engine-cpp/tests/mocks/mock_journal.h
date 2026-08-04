@@ -11,7 +11,7 @@ public:
               (Event event, const std::string &data,
                const std::string &correlation_id),
               (override));
-  MOCK_METHOD(std::vector<LogEntry>, get_history,
+  MOCK_METHOD(Result<std::vector<LogEntry>>, get_history,
               (Timestamp from, Timestamp to, std::optional<Event> event_filter),
               (override));
   MOCK_METHOD(std::vector<LogEntry>, get_order_history,
