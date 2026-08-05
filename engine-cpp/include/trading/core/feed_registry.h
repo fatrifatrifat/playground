@@ -4,9 +4,9 @@
 #include <trading/interfaces/i_market_data_feed.h>
 
 #include <optional>
+#include <shared_mutex>
 #include <unordered_map>
 #include <vector>
-#include <shared_mutex>
 
 namespace quarcc {
 
@@ -31,7 +31,7 @@ struct FeedKeyHash {
 
 // FeedRegistry basically handles:
 //  - Different feeds (symbol & period)
-//  - Subscription of the OM to the right feeds based on the config.yaml file
+//  - Subscription of the OM to the right feeds based on the user's config
 //  - Enqueues the bars/ticks to each OM's event queue
 class FeedRegistry {
 public:
@@ -45,7 +45,7 @@ public:
   void register_feed(FeedKey key, std::unique_ptr<IMarketDataFeed> feed);
 
   // Unregisters a specific manager to avoid dangling pointers
-  void unregister_manager(OrderManager* manager);
+  void unregister_manager(OrderManager *manager);
 
   bool has_feed(const FeedKey &key) const;
 
