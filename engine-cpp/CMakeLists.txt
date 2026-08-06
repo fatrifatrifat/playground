@@ -25,6 +25,8 @@ target_sources(trading_interfaces INTERFACE
     FILES ${TRADING_PUBLIC_HEADERS}
 )
 
+target_link_libraries(trading_interfaces INTERFACE trading_contracts spdlog::spdlog)
+
 if(TRADING_ENABLE_ALPACA_SDK)
     if(NOT TARGET alpaca::alpaca_sdk)
         message(FATAL_ERROR

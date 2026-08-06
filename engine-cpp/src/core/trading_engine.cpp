@@ -7,6 +7,14 @@
 #include <trading/persistence/sqlite_journal.h>
 #include <trading/persistence/sqlite_order_store.h>
 
+#include <common.pb.h>
+#include <execution.pb.h>
+#include <execution_service.pb.h>
+#include <gateway_adapter_service.pb.h>
+#include <market_data.pb.h>
+#include <order.pb.h>
+#include <strategy_signal.pb.h>
+
 #include <csignal>
 #include <pthread.h>
 #include <shared_mutex>
@@ -21,6 +29,18 @@ void TradingEngine::Run(const char *config_path) {
   signal_handler();
 
   server_ = std::make_unique<gRPCServer>(config_path, *this);
+
+  // Force protobuf to eagerly initialize all message descriptors on this thread
+  // before gRPC spawns its worker threads. Without this, concurrent first-use
+  // from multiple grpcpp_sync_ser threads races on protobuf's lazy static init.
+  quarcc::v1::MarketDataEvent::default_instance();
+  quarcc::v1::ExecutionReport::default_instance();
+  quarcc::v1::Order::default_instance();
+  quarcc::v1::StrategySignal::default_instance();
+  quarcc::v1::RegisterStrategyRequest::default_instance();
+  quarcc::v1::RegisterStrategyResponse::default_instance();
+  quarcc::v1::AdapterSubmitRequest::default_instance();
+  quarcc::v1::AdapterSubmitResponse::default_instance();
 
   feed_registry_.start_all();
   server_->start();
