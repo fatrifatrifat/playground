@@ -4,7 +4,6 @@ add_library(trading_core STATIC
     order_manager.cpp
     position_keeper.cpp
     risk_manager.cpp
-    poll_scheduler.cpp
     feed_registry.cpp
     adapter_manager.cpp
 )

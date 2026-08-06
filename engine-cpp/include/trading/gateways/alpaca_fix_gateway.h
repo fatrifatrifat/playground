@@ -34,7 +34,7 @@ private:
   order_enum_conversion(v1::TimeInForce type) const;
 
 private:
-  // TODO: config.yaml takes in environemnt variables like api keys for env_.
+  // TODO: User's config takes in environemnt variables like api keys for env_
   // Modify alpaca-sdk-cpp
   alpaca::Environment env_;
   alpaca::TradingClient trade_;

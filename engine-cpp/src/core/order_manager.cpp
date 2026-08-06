@@ -3,8 +3,8 @@
 #include <trading/core/position_keeper.h>
 #include <trading/utils/event_queue.h>
 
-#include <iostream>
 #include <filesystem>
+#include <iostream>
 
 namespace quarcc {
 
@@ -32,10 +32,6 @@ v1::Order create_order_from_signal(const T &signal,
   order.set_strategy_id(signal.strategy_id());
   return order;
 }
-
-struct RecoveryData {
-  std::unordered_map<std::string, PositionKeeper::Position> positions_;
-};
 
 } // namespace
 
@@ -270,8 +266,11 @@ OrderManager::process_signal(const v1::StrategySignal &signal) {
 
   try {
     stored.created_at = LogEntry::timestamp_to_string(LogEntry::now());
-  } catch (const std::exception& err) {
-    return std::unexpected { Error { std::string { err.what() } + " (Occured while converting timestamp to string in signal creation)", ErrorType::FailedOrder } };
+  } catch (const std::exception &err) {
+    return std::unexpected{Error{std::string{err.what()} +
+                                     " (Occured while converting timestamp "
+                                     "to string in signal creation)",
+                                 ErrorType::FailedOrder}};
   }
   if (auto r = order_store_->store_order(stored); !r) {
     journal_->log(Event::ERROR_OCCURRED, r.error().message_, local_id);
@@ -279,8 +278,7 @@ OrderManager::process_signal(const v1::StrategySignal &signal) {
   }
 
   {
-    // const auto open_count = open_order_count_.load();
-    const auto open_count = order_store_->get_open_orders().size();
+    const auto open_count = open_order_count_.load();
     const double realized_pnl = position_keeper_->get_total_pnl();
     if (auto r =
             risk_manager_->check(order.quantity(), open_count, realized_pnl);
@@ -402,8 +400,11 @@ OrderManager::process_signal(const v1::ReplaceSignal &signal) {
 
   try {
     stored.created_at = LogEntry::timestamp_to_string(LogEntry::now());
-  } catch (const std::exception& err) {
-    return std::unexpected { Error { std::string { err.what() } + " (Occured while converting timestamp to string in signal replacement)", ErrorType::FailedOrder } };
+  } catch (const std::exception &err) {
+    return std::unexpected{Error{std::string{err.what()} +
+                                     " (Occured while converting timestamp "
+                                     "to string in signal replacement)",
+                                 ErrorType::FailedOrder}};
   }
 
   if (auto r = order_store_->store_order(stored); !r) {

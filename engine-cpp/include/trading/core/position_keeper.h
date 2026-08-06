@@ -20,10 +20,6 @@ public:
     double rPnL = 0.0;
   };
 
-  void apply_positions(std::unordered_map<std::string, Position> pos_to_apply) {
-    positions_ = std::move(pos_to_apply);
-  }
-
   // Called by OrderManager::process_fills() whenever a fill arrives from the
   // gateway. Updates the in-memory position with a signed-quantity weighted-
   // average price calculation.

@@ -1,7 +1,6 @@
 [requires]
 grpc/1.82.0
 protobuf/6.33.5
-yaml-cpp/0.9.0
 gtest/1.17.0
 sqlite3/3.53.3
 spdlog/1.17.0
