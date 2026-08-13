@@ -31,8 +31,8 @@ void TradingEngine::Run(const char *config_path) {
   server_ = std::make_unique<gRPCServer>(config_path, *this);
 
   // Force protobuf to eagerly initialize all message descriptors on this thread
-  // before gRPC spawns its worker threads. Without this, concurrent first-use
-  // from multiple grpcpp_sync_ser threads races on protobuf's lazy static init.
+  // before gRPC spawns its worker threads. Without this, concurrent first use
+  // from multiple grpcpp_sync_ser threads races on protobuf's lazy static init
   quarcc::v1::MarketDataEvent::default_instance();
   quarcc::v1::ExecutionReport::default_instance();
   quarcc::v1::Order::default_instance();
@@ -115,8 +115,8 @@ TradingEngine::create_strategy(const v1::RegisterStrategyRequest &strat) {
       managers_.emplace(
           StrategyId{strat.strategy_id()},
           OrderManager::create_order_manager(
-              strat.strategy_id(), strat.account_id(),
-              std::make_unique<PositionKeeper>(), std::move(gateway),
+              strat.account_id(), std::make_unique<PositionKeeper>(),
+              std::move(gateway),
               std::make_unique<SQLiteJournal>(strat.strategy_id()),
               std::make_unique<SQLiteOrderStore>(strat.strategy_id()),
               std::make_unique<RiskManager>(std::move(risk_limit))));

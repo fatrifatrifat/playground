@@ -15,19 +15,42 @@
 #include <trading/utils/result.h>
 
 #include <functional>
+#include <future>
 #include <mutex>
 #include <thread>
 #include <variant>
 
 namespace quarcc {
 
+struct SubmitCommand {
+  v1::StrategySignal signal;
+  std::promise<Result<LocalOrderId>> result;
+};
+
+struct CancelCommand {
+  v1::CancelSignal signal;
+  std::promise<Result<std::monostate>> result;
+};
+
+struct ReplaceCommand {
+  v1::ReplaceSignal signal;
+  std::promise<Result<LocalOrderId>> result;
+};
+
+struct CancelAllCommand {
+  std::string reason;
+  std::string initiated_by;
+  std::promise<void> done;
+};
+
 // All events processed by each order manager
 // No lock required, they're all processed sequentially
-using OMEvent = std::variant<Bar, Tick, v1::ExecutionReport>;
+using OMEvent = std::variant<Bar, Tick, v1::ExecutionReport, SubmitCommand,
+                             CancelCommand, ReplaceCommand, CancelAllCommand>;
 
 // Maximum number of market data events (Bar + Tick) buffered per OrderManager
 // before new ones are dropped
-// Fills are never subject to this can
+// Fills and commands are never subject to this can
 //
 // 2^13 is very random, but seems to give okay perf and doesn't kill my RAM :'(
 inline constexpr std::size_t MAX_MARKETDATA_QUEUE_DEPTH = 8192;
@@ -42,10 +65,9 @@ public:
   ~OrderManager();
 
   static std::unique_ptr<OrderManager> create_order_manager(
-      std::string strategy_id, std::string account_id,
-      std::unique_ptr<PositionKeeper> pk, std::unique_ptr<IExecutionGateway> gw,
-      std::unique_ptr<IJournal> lj, std::unique_ptr<IOrderStore> os,
-      std::unique_ptr<RiskManager> rm);
+      std::string account_id, std::unique_ptr<PositionKeeper> pk,
+      std::unique_ptr<IExecutionGateway> gw, std::unique_ptr<IJournal> lj,
+      std::unique_ptr<IOrderStore> os, std::unique_ptr<RiskManager> rm);
 
   // May be called by different threads (gRPC, market feed, etc.)
   void enqueue(OMEvent event);
@@ -57,17 +79,16 @@ public:
   // Sets sink funtions for handling data for bars and ticks given by gRPC to a
   // specific strategy. They're later called by the dispatcher thread whenever a
   // bar/tick event comes inside the queue
-  // ALSO: always call clear_market_data_sinks() before the ServerWriter is
+  // ALSO: always call clear_*_sinks() before the ServerWriter is
   // destroyed
   void set_market_data_sinks(std::function<void(const Tick &)> tick_sink,
                              std::function<void(const Bar &)> bar_sink);
   void clear_market_data_sinks();
-
-  // Exactly the same thing as the functions above for market data, but for fill
-  // updates
   void set_fill_sink(std::function<void(const v1::ExecutionReport &)> sink);
   void clear_fill_sink();
 
+  // Thin wrappers that enqueue the event for the dispatch thread to handle
+  // Waits for the processed return value with std::future/std::promise
   Result<LocalOrderId> process_signal(const v1::StrategySignal &signal);
   Result<std::monostate> process_signal(const v1::CancelSignal &signal);
   Result<LocalOrderId> process_signal(const v1::ReplaceSignal &signal);
@@ -87,7 +108,15 @@ private:
   // for the queue's front event
   void run_dispatch_loop(std::stop_token st);
 
-  // Handlers, ONLY CALLED BY THE DISPATCH THREAD...
+  // These contain the logic that previously lived in process_signal() on the
+  // gRPC thread. Moving them here makes the dispatch thread the sole writer of
+  // order_store_, id_mapper_, and open_order_count_
+  void handle_submit_command(SubmitCommand &cmd);
+  void handle_cancel_command(CancelCommand &cmd);
+  void handle_replace_command(ReplaceCommand &cmd);
+  void handle_cancel_all_command(CancelAllCommand &cmd);
+
+  // Original fill/market data handlers
   void handle_fill(const v1::ExecutionReport &fill);
   void handle_bar(const Bar &bar);
   void handle_tick(const Tick &tick);
@@ -103,25 +132,18 @@ private:
   std::unique_ptr<OrderIdGenerator> id_generator_;
   std::unique_ptr<OrderIdMapper> id_mapper_;
 
-  // Functions set at the grpc_server level to give behavior when a data comes,
-  // basically sends that data through gRPC to the client. Look at
-  // gRPCServer::StreamMarketData for more info
-  //
-  // Mutex used to protect handling the data and setting the sink functions
-  // since both the gRPC and the dispatcher thread can touch it... Dangerous!
   std::function<void(const Tick &)> tick_sink_;
   std::function<void(const Bar &)> bar_sink_;
   std::mutex md_sink_mu_;
 
-  // Same thing as above again but for fills
   std::function<void(const v1::ExecutionReport &)> fill_sink_;
   std::mutex fill_sink_mu_;
 
-  // TODO: CHange memory orders on use
-  std::atomic<int> open_order_count_{};
+  // Doesn't need to be atomic anymore since only the dispatch thread mutates it
+  int open_order_count_{};
 
-  // IMPORTANT: dispatch_thread_ must remain last, its destructor joins the
-  // thread before any other members are destroyed
+  // IMPORTANT: dispatch_thread_ must be declared last so its destructor joins
+  // the thread before any other members (including the queue) are destroyed
   EventQueue<OMEvent> queue_;
   std::jthread dispatch_thread_;
 };
