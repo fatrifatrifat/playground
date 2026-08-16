@@ -10,13 +10,14 @@
 
 namespace quarcc {
 
-  // SQLiteJournal possibly throws on construction
+// SQLiteJournal possibly throws on construction
 struct JournalFixture : public testing::Test {
   SQLiteJournal journal{":memory:"};
 };
 
 TEST_F(JournalFixture, LogAndRetrieveSingleEntry) {
   journal.log(Event::ORDER_CREATED, "test data", "ORDER_1");
+  journal.flush();
 
   auto from = LogEntry::now() - std::chrono::seconds{5};
   auto to = LogEntry::now() + std::chrono::seconds{5};
@@ -41,7 +42,9 @@ TEST_F(JournalFixture, GetHistoryWithEventFilterReturnsOnlyMatchingEvents) {
 
   auto from = LogEntry::now() - std::chrono::seconds{5};
   auto to = LogEntry::now() + std::chrono::seconds{5};
-  const auto entries_result = journal.get_history(from, to, Event::ORDER_SUBMITTED);
+  journal.flush();
+  const auto entries_result =
+      journal.get_history(from, to, Event::ORDER_SUBMITTED);
 
   if (entries_result) {
     const auto entries = *entries_result;
@@ -58,6 +61,7 @@ TEST_F(JournalFixture, GetOrderHistoryFiltersByCorrelationId) {
   journal.log(Event::ORDER_SUBMITTED, "submitted", "ORD_X");
   journal.log(Event::ORDER_CREATED, "other order", "ORD_Y");
 
+  journal.flush();
   auto entries = journal.get_order_history("ORD_X");
 
   ASSERT_EQ(entries.size(), 2u);
@@ -84,6 +88,7 @@ TEST_F(JournalFixture, MultipleEntriesAreOrderedByInsertionId) {
   std::this_thread::sleep_for(std::chrono::milliseconds{10});
   journal.log(Event::ORDER_FILLED, "3", "ORD_SEQ");
 
+  journal.flush();
   auto entries = journal.get_order_history("ORD_SEQ");
   ASSERT_EQ(entries.size(), 3u);
   EXPECT_EQ(entries[0].event_type, Event::ORDER_CREATED);
@@ -96,6 +101,7 @@ TEST_F(JournalFixture, LogWithoutCorrelationIdSucceeds) {
 
   auto from = LogEntry::now() - std::chrono::seconds{5};
   auto to = LogEntry::now() + std::chrono::seconds{5};
+  journal.flush();
   const auto entries_result = journal.get_history(from, to);
   if (entries_result) {
     const auto entries = *entries_result;
