@@ -75,10 +75,16 @@ message HealthResponse {
   double daily_pnl = 5;
 }
 
+enum HaltMode {
+  STOP_STRATEGY = 0;
+  HALT_ALL = 1;
+}
+
 message KillSwitchRequest {
   string reason = 1;
   string initiated_by = 2;
   string strategy_id = 3;
+  HaltMode mode = 4;
 }
 
 message MarketDataSubscriptionMessage {
