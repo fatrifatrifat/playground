@@ -3,6 +3,7 @@
 
 #include <iostream>
 #include <stdexcept>
+#include <trading/utils/helpers.h>
 
 namespace quarcc {
 
@@ -21,12 +22,30 @@ SQLiteJournal::SQLiteJournal(const std::string &db_path) {
                nullptr); // 8MB cache
 
   create_schema();
+
+  writer_thread_ =
+      std::jthread([this](std::stop_token st) { writer_loop(st); });
 }
 
+// Shutdown order:
+//  1. flush() -> waits until all pushed pending entries are committed
+//  2. request_stop() to signal the writer thread to exit
+//  3. notify_all() to wake the writer thread
+//  4. join() wait for the writer thread to exit
+//  5. WAL checkpoint + sqlite3_close
+//
 SQLiteJournal::~SQLiteJournal() {
+  flush();
+  writer_thread_.request_stop();
+  queue_cv_.notify_all();
+  if (writer_thread_.joinable())
+    writer_thread_.join();
+
   if (db_) {
-    flush();
+    std::lock_guard lk{db_mu_};
+    sqlite3_wal_checkpoint(db_, nullptr);
     sqlite3_close(db_);
+    db_ = nullptr;
   }
 }
 
@@ -58,53 +77,32 @@ void SQLiteJournal::create_schema() {
 
 void SQLiteJournal::log(Event event, const std::string &data,
                         const std::string &correlation_id) {
-  std::lock_guard lock(mutex_);
+  std::string timestamp_str{"UNKNOWN"};
+  try {
+    timestamp_str = LogEntry::timestamp_to_string(LogEntry::now());
+  } catch (const std::exception &err) {
+    spdlog::error("[journal] timestamp conversion failed: {}", err.what());
+  }
 
-  const char *sql = R"(
-    INSERT INTO journal (timestamp, event_type, data, correlation_id) 
-    VALUES (?, ?, ?, ?)
-  )";
-
-  sqlite3_stmt *stmt = nullptr;
-  int rc = sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr);
-
-  if (rc != SQLITE_OK) [[unlikely]] {
-    spdlog::error("Failed to prepare statement: {}", sqlite3_errmsg(db_));
+  std::lock_guard lk{queue_mu_};
+  if (write_queue_.size() >= MAX_QUEUE_DEPTH) {
+    spdlog::warn("[journal] queue full ({} entries); dropping log entry",
+                 write_queue_.size());
     return;
   }
 
-  auto now = LogEntry::now();
-  std::string timestamp_str { "UNKNOWN" };
-  
-  try {
-    timestamp_str = LogEntry::timestamp_to_string(now);
-  } catch (const std::exception& err) {
-    spdlog::error(std::string { err.what() } + " (Error occured when converting timestamp to string during journal logging)\n");
-  }
-
-  sqlite3_bind_text(stmt, 1, timestamp_str.c_str(), -1, SQLITE_TRANSIENT);
-  sqlite3_bind_text(stmt, 2, event_to_string(event), -1, SQLITE_STATIC);
-  sqlite3_bind_text(stmt, 3, data.c_str(), -1, SQLITE_TRANSIENT);
-
-  if (!correlation_id.empty()) {
-    sqlite3_bind_text(stmt, 4, correlation_id.c_str(), -1, SQLITE_TRANSIENT);
-  } else {
-    sqlite3_bind_null(stmt, 4);
-  }
-
-  // Execute
-  rc = sqlite3_step(stmt);
-  if (rc != SQLITE_DONE) [[unlikely]] {
-    spdlog::error("Failed to insert log: {}", sqlite3_errmsg(db_));
-  }
-
-  sqlite3_finalize(stmt);
+  write_queue_.push_back(PendingEntry{.timestamp = std::move(timestamp_str),
+                                      .event = event,
+                                      .data = data,
+                                      .correlation_id = correlation_id});
+  ++pushed_;
+  queue_cv_.notify_one();
 }
 
 Result<std::vector<LogEntry>>
 SQLiteJournal::get_history(Timestamp from, Timestamp to,
-                            std::optional<Event> event_filter) {
-  std::lock_guard lock(mutex_);
+                           std::optional<Event> event_filter) {
+  std::lock_guard lock(db_mu_);
   std::vector<LogEntry> entries;
 
   std::string sql = R"(
@@ -132,16 +130,22 @@ SQLiteJournal::get_history(Timestamp from, Timestamp to,
 
   try {
     from_str = LogEntry::timestamp_to_string(from);
-  } catch (const std::exception& err) {
-    return std::unexpected { Error { std::string { err.what() } + " (Occured when converting timestamp to string : from)", ErrorType::Error } };
+  } catch (const std::exception &err) {
+    return std::unexpected{
+        Error{std::string{err.what()} +
+                  " (Occured when converting timestamp to string : from)",
+              ErrorType::Error}};
   }
 
   try {
     to_str = LogEntry::timestamp_to_string(to);
-  } catch (const std::exception& err) {
-    return std::unexpected { Error { std::string { err.what() } + " (Occured when converting timestamp to string : to)", ErrorType::Error} };
+  } catch (const std::exception &err) {
+    return std::unexpected{
+        Error{std::string{err.what()} +
+                  " (Occured when converting timestamp to string : to)",
+              ErrorType::Error}};
   }
-  
+
   sqlite3_bind_text(stmt, 1, from_str.c_str(), -1, SQLITE_TRANSIENT);
   sqlite3_bind_text(stmt, 2, to_str.c_str(), -1, SQLITE_TRANSIENT);
 
@@ -179,7 +183,7 @@ SQLiteJournal::get_history(Timestamp from, Timestamp to,
 
 std::vector<LogEntry>
 SQLiteJournal::get_order_history(const std::string &order_id) {
-  std::lock_guard lock(mutex_);
+  std::lock_guard lock(db_mu_);
   std::vector<LogEntry> entries;
 
   const char *sql = R"(
@@ -226,8 +230,94 @@ SQLiteJournal::get_order_history(const std::string &order_id) {
 }
 
 void SQLiteJournal::flush() {
-  std::lock_guard lock(mutex_);
-  sqlite3_wal_checkpoint(db_, nullptr);
+  {
+    std::unique_lock lk{queue_mu_};
+    queue_cv_.wait(lk, [&] { return committed_ >= pushed_; });
+  }
+
+  std::lock_guard lock(db_mu_);
+  if (db_)
+    sqlite3_wal_checkpoint(db_, nullptr);
+}
+
+void SQLiteJournal::writer_loop(std::stop_token st) {
+  while (true) {
+    std::vector<PendingEntry> batch;
+
+    {
+      std::unique_lock lk{queue_mu_};
+      queue_cv_.wait_for(lk, st, std::chrono::milliseconds{BATCH_INTERVAL_MS},
+                         [&] { return !write_queue_.empty(); });
+
+      if (write_queue_.empty()) {
+        if (st.stop_requested()) {
+          break;
+        }
+        continue;
+      }
+
+      batch.reserve(std::min(write_queue_.size(), BATCH_SIZE));
+      while (!write_queue_.empty() && batch.size() < BATCH_SIZE) {
+        batch.push_back(std::move(write_queue_.front()));
+        write_queue_.pop_front();
+      }
+    }
+
+    commit_batch(batch);
+
+    {
+      std::lock_guard lk{queue_mu_};
+      committed_ += batch.size();
+      queue_cv_.notify_all(); // wakes flush() if it's waiting
+    }
+  }
+}
+
+void SQLiteJournal::commit_batch(const std::vector<PendingEntry> &batch) {
+  if (batch.empty())
+    return;
+
+  std::lock_guard lk{db_mu_};
+  if (!db_)
+    return;
+
+  sqlite3_exec(db_, "BEGIN", nullptr, nullptr, nullptr);
+
+  const char *sql = R"(
+    INSERT OR IGNORE INTO journal (timestamp, event_type, data, correlation_id)
+    VALUES (?, ?, ?, ?)
+  )";
+
+  sqlite3_stmt *stmt = nullptr;
+  int rc = sqlite3_prepare_v2(db_, sql, -1, &stmt, nullptr);
+
+  if (rc != SQLITE_OK) [[unlikely]] {
+    spdlog::error("[journal] prepare failed: {}", sqlite3_errmsg(db_));
+    sqlite3_exec(db_, "ROLLBACK", nullptr, nullptr, nullptr);
+    return;
+  }
+
+  for (const auto &e : batch) {
+    sqlite3_reset(stmt);
+
+    sqlite3_bind_text(stmt, 1, e.timestamp.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 2, event_to_string(e.event), -1, SQLITE_STATIC);
+    sqlite3_bind_text(stmt, 3, e.data.c_str(), -1, SQLITE_TRANSIENT);
+
+    if (!e.correlation_id.empty()) {
+      sqlite3_bind_text(stmt, 4, e.correlation_id.c_str(), -1,
+                        SQLITE_TRANSIENT);
+    } else {
+      sqlite3_bind_null(stmt, 4);
+    }
+
+    rc = sqlite3_step(stmt);
+    if (rc != SQLITE_DONE) [[unlikely]]
+      spdlog::error("[journal] insert failed: {}", sqlite3_errmsg(db_));
+  }
+
+  sqlite3_finalize(stmt);
+  sqlite3_exec(db_, "COMMIT", nullptr, nullptr, nullptr);
 }
 
 } // namespace quarcc
