@@ -157,7 +157,7 @@ struct LogEntry {
     std::tm tm = {};
     std::istringstream ss(str);
     ss >> std::get_time(&tm, "%Y-%m-%d %H:%M:%S");
-    return std::chrono::system_clock::from_time_t(std::mktime(&tm));
+    return std::chrono::system_clock::from_time_t(timegm(&tm));
   }
 };
 
