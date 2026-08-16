@@ -33,6 +33,12 @@ private:
                   const std::string &intiated_by = "SIGINT/SIGTERM");
   void signal_handler();
 
+  Result<std::monostate> stop_strategy(const std::string &strategy_id,
+                                       const std::string &reason,
+                                       const std::string &initiated_by);
+  Result<std::monostate> halt_all(const std::string &reason,
+                                  const std::string &initiated_by);
+
 private:
   // IExecutionServiceHandler functions
   Result<BrokerOrderId> SubmitSignal(const v1::StrategySignal &req) override;

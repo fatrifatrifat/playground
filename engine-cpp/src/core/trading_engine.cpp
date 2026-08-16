@@ -375,30 +375,55 @@ void TradingEngine::ClearFillStream(const std::string &strategy_id) {
 
 Result<std::monostate>
 TradingEngine::ActivateKillSwitch(const v1::KillSwitchRequest &req) {
-  {
-    std::unique_lock lk{managers_mu_};
-    if (auto it = managers_.find(req.strategy_id()); it != managers_.end()) {
-      it->second->cancel_all(req.reason(), req.initiated_by());
-      feed_registry_.unregister_manager(it->second.get());
-      managers_.erase(it);
-      if (managers_.empty()) {
-        {
-          std::lock_guard lk{run_mu_};
-          running_ = false;
-        }
-        run_cv_.notify_one();
-      }
-      return std::monostate{};
-    }
+  switch (req.mode()) {
+  case v1::HaltMode::HALT_ALL:
+    return halt_all(req.reason(), req.initiated_by());
+  case v1::HaltMode::STOP_STRATEGY:
+    return stop_strategy(req.strategy_id(), req.reason(), req.initiated_by());
+  default:
+    std::terminate();
   }
-
-  return std::unexpected(Error{
-      .message_ =
-          std::format("No strategy by the name of {}, failed to terminate",
-                      req.strategy_id()),
-      .type_ = ErrorType::Error}
-
-  );
 }
 
+Result<std::monostate>
+TradingEngine::stop_strategy(const std::string &strategy_id,
+                             const std::string &reason,
+                             const std::string &initiated_by) {
+  std::unique_lock lk{managers_mu_};
+  auto it = managers_.find(strategy_id);
+  if (it == managers_.end()) {
+    return std::unexpected(
+        Error{std::format("No strategy '{}' found; cannot stop", strategy_id),
+              ErrorType::Error});
+  }
+
+  it->second->cancel_all(reason, initiated_by);
+  feed_registry_.unregister_manager(it->second.get());
+  managers_.erase(it);
+
+  spdlog::info("[halt] Strategy '{}' stopped (STOP_STRATEGY). Engine running",
+               strategy_id);
+  return std::monostate{};
+}
+
+Result<std::monostate>
+TradingEngine::halt_all(const std::string &reason,
+                        const std::string &initiated_by) {
+  {
+    std::unique_lock lk{managers_mu_};
+    for (auto &[id, manager] : managers_) {
+      manager->cancel_all(reason, initiated_by);
+      feed_registry_.unregister_manager(manager.get());
+    }
+    managers_.clear();
+  }
+
+  spdlog::info("[halt] HALT_ALL: all strategies stopped; triggering shutdown");
+  {
+    std::lock_guard lk{run_mu_};
+    running_ = false;
+  }
+  run_cv_.notify_one();
+  return std::monostate{};
+}
 } // namespace quarcc
